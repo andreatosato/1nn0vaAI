@@ -1,0 +1,5 @@
+{
+  "appHost": {
+    "path": "src/Observatory.AppHost/Observatory.AppHost.csproj"
+  }
+}

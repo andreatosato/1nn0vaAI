@@ -1,0 +1,14 @@
+Ecco i dettagli verificati per ORD-1042 e un suggerimento di camicia sotto i 40 USD.
+
+Ordine ORD-1042
+- Consegna: 2026-09-05 (stato: delivered).
+- Reso per difetto: ammissibile.
+  - Policy: POL-DEFECT-60
+  - Motivo valutato: “Reso ammissibile: 18 giorni dalla consegna, limite 60 giorni.”
+  - Giorni dalla consegna: 18
+  - Importo rimborsabile (AmountPaid): 19.99 USD
+  - needsClarification: false
+  Nota: questa è una valutazione; non è stata creata alcuna bozza né eseguito un rimborso.
+
+Suggerimento camicia disponibile sotto 40 USD
+- ID 86 – Man Short Sleeve Shirt: 19.99 USD (in stock)

@@ -1,0 +1,33 @@
+@baseUrl = http://localhost:5197
+
+### Available prompt blocks and existing executable model profiles
+GET {{baseUrl}}/api/config
+
+### Read-only teaching inspector: all synthetic customers, never a chat authorization grant.
+### Orders/Returns must be running; unavailable or malformed upstream => 502 shop_service_unavailable.
+GET {{baseUrl}}/api/demo-data
+
+### Exact configured instructions, without inference or persisted state
+POST {{baseUrl}}/api/prompts/preview
+Content-Type: application/json
+
+{
+  "mode": "live",
+  "modelProfileId": "gpt5",
+  "promptProfile": "good",
+  "promptBlocks": {
+    "checklist": true,
+    "outputContract": true,
+    "examples": true,
+    "redundancy": false,
+    "conflictingStyle": false
+  }
+}
+
+### Rejected: null is not a valid block selection (400)
+POST {{baseUrl}}/api/prompts/preview
+Content-Type: application/json
+
+{
+  "promptBlocks": null
+}

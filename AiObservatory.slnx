@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Observatory.AgentHost/Observatory.AgentHost.csproj" />
+    <Project Path="src/Observatory.Agents/Observatory.Agents.csproj" />
+    <Project Path="src/Observatory.Api/Observatory.Api.csproj" />
+    <Project Path="src/Observatory.AppHost/Observatory.AppHost.csproj" />
+    <Project Path="src/Observatory.Core/Observatory.Core.csproj" />
+    <Project Path="src/Observatory.Runner/Observatory.Runner.csproj" />
+    <Project Path="src/Observatory.ServiceDefaults/Observatory.ServiceDefaults.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Observatory.Tests/Observatory.Tests.csproj" />
+  </Folder>
+</Solution>

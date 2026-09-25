@@ -1,0 +1,39 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "test-domain",
+			"type": "shell",
+			"command": "dotnet",
+			"args": [
+				"test",
+				"tests\\Observatory.Tests\\Observatory.Tests.csproj",
+				"--filter",
+				"FullyQualifiedName~DomainTests",
+				"--logger",
+				"console"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "test"
+		},
+		{
+			"label": "build-demo",
+			"type": "shell",
+			"command": "dotnet",
+			"args": ["build", "AiObservatory.slnx"],
+			"problemMatcher": ["$msCompile"],
+			"group": { "kind": "build", "isDefault": true }
+		},
+		{
+			"label": "build-ui",
+			"type": "shell",
+			"command": "npm",
+			"args": ["--prefix", "src\\Observatory.Web", "run", "build"],
+			"problemMatcher": ["$tsc"],
+			"group": "build"
+		}
+	]
+}

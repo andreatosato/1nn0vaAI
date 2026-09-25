@@ -1,0 +1,232 @@
+# Observatory.AgentHost
+
+One ASP.NET Core executable, run as **three separate service instances**:
+`catalog-service`, `orders-service`, `returns-service`. `Agents:Role` selects
+`catalog`, `orders` or `returns`. Each instance exposes only its own business
+API, skill package and A2A specialist/card, not all three roles.
+
+All demo APIs depend on these services. Inline and Skills call their business
+HTTP endpoints without specialist inference. A2A invokes real remote agents,
+each with its own model/tool loop. There are not three copies of this project.
+The default access policy is loopback-only; private container networks require
+explicit authenticated remote access.
+
+The host references Core, Agents and ServiceDefaults and uses the official
+`A2A.AspNetCore` **0.3.4-preview** server with the matching **0.3.4-preview**
+client. Framework agents are created per invocation; request-specific
+model/prompt/history/customer settings are never global mutable configuration.
+
+## Run
+
+The normal entry point, from the workspace root, is one Aspire AppHost:
+
+```powershell
+dotnet run --project .\src\Observatory.AppHost --launch-profile http
+```
+
+It supplies dynamic service origins to every API through
+`Agents:Endpoints:catalog`, `Agents:Endpoints:orders`,
+`Agents:Endpoints:returns`. `Agents:BaseUrl` is no longer the routing contract.
+Each value is an HTTP(S) **origin**, without `/api`, `/a2a`, credentials,
+query or fragment.
+
+For standalone development, build this project once, then run **one command
+per terminal**, using the same built executable:
+
+```powershell
+dotnet build .\src\Observatory.AgentHost\Observatory.AgentHost.csproj
+```
+
+```powershell
+dotnet run --no-build --project .\src\Observatory.AgentHost --launch-profile catalog
+dotnet run --no-build --project .\src\Observatory.AgentHost --launch-profile orders
+dotnet run --no-build --project .\src\Observatory.AgentHost --launch-profile returns
+```
+
+| Profile / `Agents:Role` | Standalone origin | Aspire resource |
+| --- | --- | --- |
+| `catalog` | `http://localhost:5205` | `catalog-service` |
+| `orders` | `http://localhost:5206` | `orders-service` |
+| `returns` | `http://localhost:5207` | `returns-service` |
+
+Legacy `http`/`https` profiles select Catalog. `--urls`/`ASPNETCORE_URLS`
+can override the listener. Without explicit listener configuration, each
+role falls back to its port in the table; changing the role does not
+override an explicitly configured listener.
+Use Aspire for the shared persistent catalog/domain paths described below.
+
+## Role-scoped HTTP surface
+
+Paths are relative to the selected service origin, not the demo API prefix.
+The business and skill routes are mapped in [BusinessEndpoints.cs](BusinessEndpoints.cs).
+
+| Role | Business endpoint | Result / request |
+| --- | --- | --- |
+| Catalog | `GET /catalog` | Complete `CatalogSnapshot`, including image URLs/provenance; **metadata/UI only**, never an AI tool |
+| Catalog | `GET /products?query=&maxPrice=&take=` | Search returning image-free `ProductFact` values |
+| Catalog | `GET /products/{productId:int}` | One image-free `ProductFact` |
+| Catalog | `GET /catalog/query?query=&category=&color=&maxPrice=&inStockOnly=&take=` | Filtered full-catalog totals plus bounded image-free product examples |
+| Catalog | `GET /catalog/facets` | Actual categories and text-derived colors, with product/stock totals |
+| Orders | `GET /orders/{orderId}` | Customer-scoped order |
+| Orders | `GET /demo-data/orders` | All 50 synthetic system orders; teaching UI only, never an agent tool |
+| Orders | `POST /return-drafts` | Body `{orderId,reason}`; explicit confirmation and authoritative eligibility checks |
+| Returns | `GET /policies` | Synthetic policy facts |
+| Returns | `POST /return-assessments` | Body `{orderId,reason}`; customer-scoped return assessment |
+
+The demo API uses `/demo-data/orders` together with Returns `/policies` for
+`GET /api/demo-data`. The inspector intentionally shows other synthetic customers
+only for teaching, without a customer header; it does not authorize customer
+access or change `/orders/{orderId}`, return-assessment or confirmation guards.
+It is not advertised in agent tools or skills. The normal loopback/shared-key
+transport boundary still applies. Reads do not create drafts or other state.
+Never substitute real customer data behind this teaching-only endpoint.
+
+The `query_catalog` tool uses `/catalog/query`: `totalProducts` counts distinct
+models, `inStockProducts` counts models with positive stock and `stockUnits`
+sums pieces. Totals are calculated before `take` (1-30, default 5) limits
+the example list. `maxPrice` is inclusive in USD. Category/color filters accept
+Italian or English. Colors come only from explicit title, description and tag
+words, never images; multicolor facet counts overlap and must not be summed.
+`get_catalog_facets` uses `/catalog/facets` to discover actual filters.
+Invalid filters receive explicit Problem Details, not a fabricated zero count.
+
+Each role also exposes:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /health`, `GET /alive` | Shared ServiceDefaults readiness/liveness |
+| `POST /a2a/{role}` | Official A2A `message/send` JSON-RPC handler for the configured role |
+| `GET /a2a/{role}/.well-known/agent-card.json` | That role's official agent card |
+| `GET /skills/shop-{role}/SKILL.md` | That service's versioned Markdown skill |
+| `GET /telemetry/{runId}?invocationId={id}` | Separate internal invocation telemetry batch |
+| `GET /telemetry/{runId}` | Retained batches for the run on this service |
+| `GET /` | Service endpoint/capability index |
+
+Only Returns adds
+`GET /skills/shop-returns/references/decision-checklist.md`.
+For example, the Catalog origin does not host `/a2a/orders` or
+`/skills/shop-orders/SKILL.md`. There is no `shop-router` skill.
+
+The Skills router reads **trusted bundled copies** of these same packages,
+versioned with the application; it does not download them during a run or
+execute scripts. These native Markdown skills are distinct from
+`AgentCard.Skills`, which describes A2A protocol capabilities. A2A agents use
+inline prompts and do **not** load the native skill provider.
+
+### Identity, confirmation and A2A messages
+
+The trusted backend sets `X-Observatory-Customer-Id` from its customer context.
+For draft creation it sets `X-Observatory-Confirm-Action=true` only after
+explicit validated user consent. Neither value is a model-visible tool
+argument, a field of `{orderId,reason}`, or a browser-supplied service header.
+Text claiming confirmation cannot authorize an action or change customers.
+Only Orders writes drafts; drafts do not issue payments or refunds.
+
+A2A's standard `MessageSendParams.Metadata["observatory.run"]` extension
+carries `RemoteInvocation`: invocation ID and frozen run request, including
+trusted customer/consent context. `MessageId` must match the invocation ID.
+Model input remains domain text/history, not the transport envelope.
+Outputs are standard A2A messages containing a domain `AgentExecutionResult`;
+telemetry is retrieved separately, never included in message parts.
+The SDK's well-known card route is mapped within the configured role's group.
+
+## Remote access opt-in
+
+| Configuration | Behavior |
+| --- | --- |
+| `Agents:AllowRemote=false` (default) | Loopback peers/endpoints only, even if a key is supplied |
+| `Agents:AllowRemote=true` | Requires a valid `Agents:SharedSecret` at startup |
+| `Agents:SharedSecret` | Same backend-only key on all service and API instances; 32-256 visible ASCII characters, no whitespace |
+| `X-Observatory-A2A-Key` | Required on every non-health endpoint in remote mode, including business APIs, skills, discovery, A2A, telemetry and root |
+
+Use a cryptographically random secret; Aspire generates one per container
+session and passes it only to backends. Environment names are
+`Agents__AllowRemote`, `Agents__SharedSecret` and, on callers,
+`Agents__Endpoints__catalog`, `Agents__Endpoints__orders`,
+`Agents__Endpoints__returns`. Never put the key in the frontend, URLs, model
+context, A2A metadata or committed settings. Cards advertise the header's
+security scheme, not the secret.
+
+Missing, incorrect or duplicate keys receive HTTP **401** in remote mode,
+including from loopback callers/proxies: there is no local anonymous bypass.
+The transport guard uses fixed-time comparison of SHA-256 key hashes.
+External proxies/custom HTTP logging must not capture credential headers.
+Identity and confirmation headers are not substitutes for this key.
+
+Only **`GET /health` and `GET /alive`** bypass access checks. Other methods
+still require access and are rejected with 405 after successful authorization.
+Container DNS Host headers are accepted when remote mode is enabled; the
+default retains local Host restrictions. The .NET SDK container configuration
+supplies `ASPNETCORE_URLS=http://+:8080`; Aspire assigns external endpoints.
+
+Backend clients disable redirects, forward proxies and automatic cookies.
+HTTP is intended for a trusted private container network; use HTTPS for
+untrusted networks. This shared-key integration is not public-user or
+multi-tenant authentication. Rotate keys by restarting all backend instances.
+Streaming/background tasks/push notifications are not advertised; MCP is
+not implemented.
+
+## Initialization and persistence
+
+Each service initializes Core's `ShopData` before listening.
+`Data:Directory` defaults to `AppContext.BaseDirectory\data`; Core copies the
+bundled catalog transitively at build/publish. Aspire supplies
+`.appdata\catalog` (`/state/catalog` in containers) to all three services.
+If missing, the snapshot is validated and copied atomically; concurrent
+instances reuse the winning copy. Existing snapshots are not replaced, and
+invalid snapshots fail startup. Acquisition metadata/hash and drafts remain
+intact. No duplicate catalog-copy rule is needed in this project.
+
+The services share the same frozen Core fixtures and snapshot, not
+independent shop databases. Only Orders writes synthetic drafts to the
+shared persistent `Shop:StatePath` directory: `.appdata\domain` or
+`/state/domain`. `Data:StateDirectory` is a legacy fallback.
+`Storage:Path` belongs to each API's separate evidence SQLite file and is
+not a service-domain directory.
+
+Demo APIs have no local `IShopData`. Before listening, each loads catalog,
+image URLs and provenance with `GET /catalog` from Catalog for metadata/UI.
+Scenario definitions remain local to Core. Initialization creates no
+conversation/run, executes no scenario and calls no model, seed script or
+external catalog API. The internal Catalog HTTP request is still real.
+
+The single AgentHost container image is reused by all three roles.
+AppHost preserves model/provider settings and keeps LIVE disabled by default.
+Per-invocation A2A model/prompt/history settings stay isolated.
+
+## Telemetry and verification
+
+Run/invocation IDs partition each service's in-memory `RemoteTelemetryStore`.
+Exact invocation replay shares the original execution rather than repeating
+write tools; changing metadata/input for that ID is rejected. Completed
+telemetry has a 30-minute retention and a maximum of 512 retained invocations.
+Missing/expired telemetry is not silently treated as complete. The calling
+API imports and persists remote evidence in its own SQLite ledger.
+
+Shared ServiceDefaults maps health endpoints once and subscribes to
+`Observatory.*`; no extra global HTTP retry policy is installed here.
+
+The executable self-test is an explicit offline verification action:
+
+```powershell
+dotnet run --project .\src\Observatory.AgentHost -- --self-test
+```
+
+Acceptance checks for the role-separated architecture include:
+
+- Three distinct loopback service instances and only role-owned routes/cards/skills.
+- Router-only Inline/Skills with real business HTTP; remote specialist loops in A2A.
+- Native skill discovery/body/resource loading only in Skills.
+- Identity/confirmation enforcement, image-free AI facts and Orders-only draft writes.
+- Shared snapshot/domain persistence, startup without runs and API metadata via Catalog.
+- Authenticated business, skill, card, A2A and telemetry requests in remote mode.
+- Correlated per-call evidence without secrets, fabricated usage/cost or double counting.
+- Complete catalog counts, stock totals, Italian filter follow-ups and bounded examples.
+- Explicit numeric/filter errors and malformed catalog responses without successful-looking fallback.
+
+These are expectations, not a report that the new architecture has passed
+the suites. Rebuild before using `--no-build`; previous host-singleton results
+do not validate three-service routing. No Azure inference, provider token
+semantics, deployment compatibility or model benchmark is claimed.
+See [Agents README](..\Observatory.Agents\README.md) for provider gates and the
+between-call budget limitation.

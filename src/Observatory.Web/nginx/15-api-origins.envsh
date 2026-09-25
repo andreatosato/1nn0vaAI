@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+
+for name in INLINE_API_URL SKILLS_API_URL A2A_API_URL; do
+  eval "value=\${$name:-}"
+  if [ -z "$value" ]; then
+    echo >&2 "Observatory.Web: $name e obbligatoria; nessun backend predefinito."
+    exit 1
+  fi
+  if ! printf '%s' "$value" | grep -Eq '^https?://(\[[0-9A-Fa-f:]+\]|[A-Za-z0-9_.-]+)(:[0-9]+)?/?$'; then
+    echo >&2 "Observatory.Web: $name deve essere un'origine HTTP(S), senza credenziali, percorsi o query."
+    exit 1
+  fi
+  value="${value%/}"
+  export "$name=$value"
+done

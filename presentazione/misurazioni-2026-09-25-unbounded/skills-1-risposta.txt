@@ -1,0 +1,10 @@
+Ecco i dati verificati per ORD-1042 e il suggerimento richiesto:
+
+- Consegna: 5 settembre 2026 (stato: consegnato).
+- Reso per difetto al primo utilizzo: in base alle policy correnti (POL-DEFECT-60), un difetto è ammissibile entro 60 giorni dalla consegna anche per articoli outlet. Ad oggi sono passati circa 18 giorni. Tuttavia, il servizio di valutazione dei resi ha restituito un errore, quindi non posso confermare formalmente l’idoneità in questo momento.
+- Importo rimborsabile: la proposta non può superare l’importo effettivamente pagato (POL-REFUND-PAID). Per questo ordine AmountPaid è 19,99 USD. Il prezzo di listino (29,99 USD) non determina il rimborso.
+
+Suggerimento camicia sotto 40 USD (disponibile):
+- ID 87 — “Men Check Shirt”, 27,99 USD.
+
+Se vuoi, posso riprovare la valutazione del reso appena il servizio torna disponibile. Non ho creato alcuna bozza né eseguito azioni.

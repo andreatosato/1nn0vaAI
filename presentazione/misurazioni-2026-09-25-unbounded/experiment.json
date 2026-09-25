@@ -1,0 +1,52 @@
+{
+  "configuration": {
+    "mode": "live",
+    "maxOutputTokens": 4096,
+    "confirmAction": false,
+    "unboundedExecution": true,
+    "maxModelCalls": 24,
+    "promptBlocks": {
+      "outputContract": false,
+      "checklist": false,
+      "examples": false,
+      "redundancy": false,
+      "conflictingStyle": false
+    },
+    "toolTransport": "direct",
+    "approvedBudgetUsd": null,
+    "agentModels": {},
+    "promptProfile": "good",
+    "modelProfileId": "gpt5",
+    "historyStrategy": "full"
+  },
+  "limitsNotice": "Explicit unbounded execution: budget, call count and run timeout disabled; provider output cap omitted. Legacy numeric limit fields are ignored. Provider/SDK technical constraints, cancellation and action permissions remain.",
+  "question": "Per l'ordine ORD-1042, dimmi quando e stato consegnato, se posso restituirlo perche difettoso al primo utilizzo e quale importo mi spetterebbe. Consigliami anche una camicia disponibile sotto i 40 USD, con ID e prezzo. Non creare bozze ne eseguire azioni.",
+  "notice": "Two sequential repetitions per architecture; no cache reset or guaranteed cold/warm state. New conversation for each run. Synthetic data. Provider measurements; not a benchmark.",
+  "executionOrder": [
+    {
+      "technology": "inline",
+      "repetition": 1
+    },
+    {
+      "technology": "skills",
+      "repetition": 1
+    },
+    {
+      "technology": "a2a",
+      "repetition": 1
+    },
+    {
+      "technology": "a2a",
+      "repetition": 2
+    },
+    {
+      "technology": "skills",
+      "repetition": 2
+    },
+    {
+      "technology": "inline",
+      "repetition": 2
+    }
+  ],
+  "startedAt": "2026-09-25T13:23:21.0607281+00:00"
+}
