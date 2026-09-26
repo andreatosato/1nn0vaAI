@@ -1,6 +1,6 @@
 # Osservare l'AI per migliorare la qualità delle risposte e abbassare il costo dei modelli
 
-## PPT attuale: 24 slide, 60 minuti
+## PPT attuale: 27 slide, 60 minuti
 
 La versione aggiornata è
 [Osservare-AI-Andrea-Tosato-senza-limiti.pptx](./Osservare-AI-Andrea-Tosato-senza-limiti.pptx),
@@ -9,33 +9,41 @@ Le durate nelle note del relatore determinano automaticamente i footer.
 
 | Minuti | Slide | Contenuto |
 |---|---|---|
-| 00–06 | 1–3 | Apertura, metriche e mappa dei workflow |
-| 06–14 | 4–8 | Rubrica, osservabilità, architettura, tool e descrizioni |
-| 14–18 | 9–10 | Skill distribuite, agent-as-tool, dialogo e responsabilità |
-| 18–26 | 11–13 | Evoluzione dei prompt, famiglie di modelli e contratto |
-| 26–40 | 14–18 | Token, cache, costo, latenza e disegno dell'esperimento |
-| 40–47 | 19 | Demo guidata |
-| 47–54 | 20–22 | Sei run LIVE, prompt effettivi ed esiti |
-| 54–55 | 23 | Pratiche operative |
-| 55–60 | 24 | Chiusura e Q&A |
+| 00–05 | 1–3 | Apertura, metriche e mappa dei workflow |
+| 05–13 | 4–8 | Rubrica, osservabilità, architettura, tool e descrizioni |
+| 13–16 | 9–11 | Diagrammi A2A vs Skill dalla conversazione condivisa |
+| 16–18 | 12–13 | Skill distribuite, agent-as-tool, dialogo e responsabilità |
+| 18–26 | 14–16 | Evoluzione dei prompt, famiglie di modelli e contratto |
+| 26–40 | 17–21 | Token, cache, costo, latenza e disegno dell'esperimento |
+| 40–47 | 22 | Demo guidata |
+| 47–54 | 23–25 | Sei run LIVE, prompt effettivi ed esiti |
+| 54–55 | 26 | Pratiche operative |
+| 55–60 | 27 | Chiusura e Q&A |
 
-### Tre slide aggiunte
+### Sei slide aggiunte
 
 - **Slide 3:** tutte le voci di *Workflow capabilities*, separate in
   composizione, interazione/durabilità, operatività e cinque orchestrazioni
   (Sequential, Concurrent, Handoff, Group Chat, Magentic). Agent-as-tool è
   un pattern aggiuntivo, non un sesto workflow built-in.
-- **Slide 9:** differenze tra tool, skill e agent-as-tool, con attribuzione
+- **Slide 9:** confronto grafico dei due flussi: A2A con secondo ciclo di
+  reasoning e Distributed Skill con reasoning nel Main Agent.
+- **Slide 10:** trasformazione grafica da quattro specialist agent a quattro
+  skill collegate ai rispettivi MCP tools, mantenendo distribuiti i servizi.
+- **Slide 11:** diagramma conclusivo “delego il reasoning” contro “delego la
+  capability”, con contesto/stato isolati da un lato e istruzioni/tool/servizio
+  remoto dall'altro.
+- **Slide 12:** differenze tra tool, skill e agent-as-tool, con attribuzione
   a Tommaso Stocchi, foto del profilo e collegamenti cliccabili.
-- **Slide 10:** delega con ritorno, handoff e collaborazione; distinzione
+- **Slide 13:** delega con ritorno, handoff e collaborazione; distinzione
   tra pattern e protocolli A2A/MCP. Agent-as-tool è adatto a sottotask e
   responsabilità chiare, ma non garantisce una latenza inferiore.
 
-Le tre coppie di misure citate nella slide 10 appartengono all'articolo,
+Le tre coppie di misure citate nella slide 13 appartengono all'articolo,
 **non ad AI Observatory**: le skill risultano più rapide in quelle prove,
 ma con circa il 22% di token in più. Non è un benchmark controllato né
 un confronto di costi in dollari. Le sei run della nostra demo restano
-inalterate nelle slide 20–22. La nostra implementazione Skills usa
+inalterate nelle slide 23–25. La nostra implementazione Skills usa
 API HTTP dedicate e tool nel router, non MCP.
 
 ### Fonti delle nuove slide

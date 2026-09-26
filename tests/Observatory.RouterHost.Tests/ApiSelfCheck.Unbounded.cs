@@ -27,9 +27,6 @@ internal static partial class ApiSelfCheck
         {
             RunId = "fixture", ConversationId = "fixture", Technology = "a2a", Message = "fixture", Configuration = selected
         };
-        ThrowsApi(() => settings.ValidateConfiguration(selected), 403, "unbounded_disabled");
-        Throws<DomainException>(() => new AgentModelRegistry(configuration).Validate(agentRequest), "Specialist requires server opt-in.");
-        configuration["Demo:AllowUnboundedExecution"] = "true";
         settings.ValidateConfiguration(selected);
         new AgentModelRegistry(configuration).Validate(agentRequest);
         ThrowsApi(() => settings.ValidateConfiguration(selected with { UnboundedExecution = false }), 422, "budget_required");
@@ -65,7 +62,7 @@ internal static partial class ApiSelfCheck
             }
         }
         finally { await worker.StopAsync(deadline.Token); }
-        Console.WriteLine("PASS: unbounded API/runtime opt-in, budget conflict, legacy serialization, timeout/call bypass, accounting, bounded limits and unknown-usage protection. No provider called.");
+        Console.WriteLine("PASS: unbounded API/runtime default, budget conflict, legacy serialization, timeout/call bypass, accounting, bounded limits and unknown-usage protection. No provider called.");
         return 0;
     }
 }

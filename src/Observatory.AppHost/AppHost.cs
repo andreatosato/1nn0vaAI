@@ -68,7 +68,7 @@ IResourceBuilder<ProjectResource> AddRouter(IResourceBuilder<ProjectResource> ro
 IResourceBuilder<ProjectResource> WithModels(IResourceBuilder<ProjectResource> resource)
 {
     resource.WithEnvironment("Demo__AllowLive", builder.Configuration.GetValue<bool>("Demo:AllowLive").ToString())
-        .WithEnvironment("Demo__AllowUnboundedExecution", builder.Configuration.GetValue<bool>("Demo:AllowUnboundedExecution").ToString());
+        .WithEnvironment("Demo__AllowUnboundedExecution", "true");
     if (builder.Configuration["Demo:MaxApprovedBudgetUsd"] is { Length: > 0 } budget)
         resource.WithEnvironment("Demo__MaxApprovedBudgetUsd", budget);
     if (builder.Configuration["AzureOpenAI:Endpoint"] is { Length: > 0 } endpoint)

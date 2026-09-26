@@ -36,16 +36,13 @@ usano comunque `crypto.getRandomValues`; non si ricorre a `Math.random`.
 
 - Home: `/#/`
 - Demo separate: `/#/inline`, `/#/skills`, `/#/a2a`.
-- Per ogni demo: `/#/{tech}/chat`, `/examples` (Confronti guidati), `/data` (Dati della demo), `/agents` (Agenti e servizi), `/trace`, `/inspector`, `/usage`, `/history`.
+- Per ogni demo: `/#/{tech}/chat`, `/examples` (Confronti guidati), `/data` (Dati della demo), `/agents` (Agenti e servizi), `/trace`, `/usage`, `/history`.
 - Contratti camelCase da `Observatory.Core\Contracts.cs`, verificati a runtime.
 - L’apertura di una demo effettua solo GET: config, prodotti, scenari, storico.
   Nessuna conversazione o chiamata modello viene creata automaticamente.
-- La configurazione iniziale usa LIVE come unica modalità. Ogni invio richiede
-  modello configurato, `liveReady=true`, budget esplicito entro
-  `maxApprovedBudgetUsd` oppure opt-in **Senza limiti applicativi** autorizzato
-  dal backend, e consenso esplicito al singolo invio. Nessun budget o consenso
-  viene scelto automaticamente. I batch
-  eseguibili da questa UI sono disabilitati.
+- La configurazione iniziale usa LIVE senza limiti applicativi. Ogni invio
+  richiede modello configurato, `liveReady=true` e consenso esplicito al singolo
+  invio. La demo non richiede né mostra un budget.
 - La guida legge gli scenari DEVELOPMENT da `/scenarios`, con `main-six-turns`
   selezionato inizialmente e i casi holdout esclusi. Mostra domini/fatti attesi
   come aspettative, non come risultati. Cambiare scenario conserva bozza e storico;
@@ -93,7 +90,7 @@ del backend; il browser non ricalcola il costo. Lo stato `priced` delle chiamate
 LIVE e riconosciuto insieme allo storico `estimated`.
 
 Ogni demo ha un pulsante flottante **Bot · Inline / Agent Skills / Agent-to-Agent**,
-inizialmente chiuso, disponibile anche in Agenti, Traccia, Inspector, Token e
+inizialmente chiuso, disponibile anche in Agenti, Traccia, Token e
 costi e Storico. La home richiede prima di scegliere una demo: non ne seleziona
 una automaticamente. La pagina `/#/{tech}/chat`, **Configurazione**,
 conserva laboratorio prompt, anteprima e consigli, senza l'elenco prodotti.
@@ -193,7 +190,7 @@ senza trasferire messaggi, bozza, consensi o override specialisti.
   anche gli oggetti annidati prima di creare/inviare il turno. Il riepilogo
   **Impostazioni registrate nel run** legge soltanto `configuration` dal GET del
   run, mai dalle select correnti. Le impostazioni richieste non sono una prova
-  di quale modello sia stato chiamato: le chiamate effettive sono nell'Inspector.
+  di quale modello sia stato chiamato: le chiamate effettive sono riportate nella Traccia.
   Durante invio/run o esito incerto le opzioni sono bloccate; un retry usa lo
   stesso payload e la stessa chiave, non le impostazioni di un nuovo messaggio.
 - **Per confrontare due configurazioni**, apri il bot e premi **Nuova chat**
@@ -270,9 +267,8 @@ solo Router per Inline/Skills, quattro agenti per A2A. Mostra il testo del
 generatore backend di `ChatOptions.Instructions` e i **caratteri dichiarati**,
 non conteggi di token inventati. L'anteprima comprende soltanto base e blocchi
 opzionali: istruzioni/risorse del provider nativo delle skill, history,
-strumenti e risultati si aggiungono successivamente. Il link all'Inspector
-porta alle registrazioni reali; la preview compare nel traffico browser/API,
-mai come span, ledger o chiamata modello.
+strumenti e risultati si aggiungono successivamente. La preview non è una
+registrazione reale e non compare come span, ledger o chiamata modello.
 
 Sono gestiti caricamento, annullamento, errore e retry esplicito. Ogni cambio di
 configurazione/API, avvio di run o unmount annulla la richiesta e invalida il
@@ -353,7 +349,6 @@ Le richieste fetch hanno un timeout di 30 secondi (5 minuti per i batch);
 un timeout non autorizza mai un reinvio automatico. Il consenso alla bozza viene
 azzerato anche dopo un retry accettato, un cambio di testo o di conversazione.
 
-L’Inspector distingue `logical`, `wire` e traffico browser/API.
 I JSON, le esportazioni e i corpi wire annidati sono redatti difensivamente;
 non viene usato HTML non sanitizzato. Le misure assenti non diventano zero.
 Replay e risultati esperimento mantengono la provenienza restituita dall’API;
@@ -397,7 +392,7 @@ Router/servizi HTTP oppure agenti remoti A2A e caricamenti nativi nel solo Route
 Per il laboratorio prompt coprono cinque switch, preset/reset, payload preview
 e invio, conservazione dei blocchi nei retry/esperimenti, compatibilità dei run
 storici, consenso e disabilitazione durante run, annullamento e risposte/errori
-obsoleti, separazione Inspector/API/modelli e le quattro guide con tastiera/fonti.
+obsoleti, separazione API/modelli e le quattro guide con tastiera/fonti.
 Esecuzione focalizzata:
 
 ```powershell

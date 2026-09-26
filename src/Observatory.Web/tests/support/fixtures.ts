@@ -51,7 +51,7 @@ export function configurationFor(technology: Technology): DemoConfiguration {
 export function liveConfigurationFor(technology: Technology): DemoConfiguration {
   const server = configurationFor(technology);
   return { ...server, allowLive: true, defaultMode: 'live',
-    capabilities: { ...server.capabilities, maxApprovedBudgetUsd: 0.1,
+    capabilities: { ...server.capabilities, maxApprovedBudgetUsd: 0.1, allowUnboundedExecution: true,
       modelCapabilities: server.models.map((model) => ({ modelProfileId: model.id, liveReady: true })) },
     models: server.models.map((model) => ({
     ...model, configured: true, pricing: { ...model.pricing,

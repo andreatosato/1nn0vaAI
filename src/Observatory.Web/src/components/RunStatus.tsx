@@ -28,7 +28,7 @@ export function RunStatus({ demo, compact = false }: { demo: DemoState; compact?
     </section>
     {currentRun && <div className="recorded-configuration">
       <ConfigurationSummary title="Impostazioni registrate nel run" settings={currentRun.configuration} server={demo.configuration.data} />
-      <p className="config-notice">Snapshot letto dal run salvato: le opzioni del prossimo messaggio non lo modificano. Le chiamate effettive, distinte dalla configurazione richiesta, si verificano nell’Inspector.</p>
+      <p className="config-notice">Snapshot letto dal run salvato: le opzioni del prossimo messaggio non lo modificano. Le chiamate effettive, distinte dalla configurazione richiesta, sono riportate nella Traccia.</p>
       <p className="config-notice" aria-label="Consumi del run selezionato">
         Input: <strong>{tokens(currentRun.inputTokens)}</strong>
         {' · '}Output: <strong>{tokens(currentRun.outputTokens)}</strong>

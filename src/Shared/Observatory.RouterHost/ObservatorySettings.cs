@@ -39,7 +39,7 @@ public sealed class ObservatorySettings
     public int MaxPendingRuns { get; }
     public TimeSpan RunTimeout { get; }
     public decimal MaxApprovedBudgetUsd { get; }
-    public bool AllowUnboundedExecution => configuration.GetValue<bool>("Demo:AllowUnboundedExecution");
+    public bool AllowUnboundedExecution => configuration.GetValue<bool?>("Demo:AllowUnboundedExecution") ?? true;
     public ModelDefinition[] Models { get; }
     public bool LiveEnabled => configuration.GetValue<bool?>("Demo:AllowLive")
         ?? configuration.GetValue<bool>("AllowLive");

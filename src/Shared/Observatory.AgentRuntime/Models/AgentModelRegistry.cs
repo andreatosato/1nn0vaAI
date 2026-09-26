@@ -102,7 +102,7 @@ public sealed class AgentModelRegistry(IConfiguration configuration)
             || request.History.Any(message => message is null))
             throw new DomainException("invalid_request", "Configurazione e cronologia non possono essere null.");
         var settings = request.Configuration;
-        if (settings.UnboundedExecution && !Configuration.GetValue<bool>("Demo:AllowUnboundedExecution"))
+        if (settings.UnboundedExecution && !(Configuration.GetValue<bool?>("Demo:AllowUnboundedExecution") ?? true))
             throw new DomainException("unbounded_disabled", "Esecuzione senza limiti non abilitata sul backend.");
         if (settings.UnboundedExecution && settings.ApprovedBudgetUsd is not null)
             throw new DomainException("conflicting_budget", "Senza limiti richiede ApprovedBudgetUsd=null.");

@@ -17,7 +17,7 @@ public sealed class RouterHostTests : IDisposable
         Assert.Equal(0, await ApiSelfCheck.Run([Database("evidence")]));
 
     [Fact]
-    public async Task Unbounded_execution_requires_opt_in_and_keeps_accounting() =>
+    public async Task Unbounded_execution_is_enabled_by_default_and_keeps_accounting() =>
         Assert.Equal(0, await ApiSelfCheck.Run(["--unbounded", Database("unbounded")]));
 
     [Fact(Skip = LegacyHarness)]

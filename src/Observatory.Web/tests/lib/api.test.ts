@@ -5,15 +5,13 @@ import type { HttpCapture } from '../../src/lib/api';
 import { configuration, configurationFor, event, jsonResponse, liveConfigurationFor, product, promptPreview, settings } from '../support/fixtures';
 
 describe('client API tipizzato', () => {
-  it('senza limiti richiede opt-in backend e conserva il consenso esplicito nella richiesta', () => {
+  it('senza limiti conserva la configurazione di esecuzione nella richiesta', () => {
     const server = liveConfigurationFor('a2a');
     const selected = { ...settings, mode: 'live', unboundedExecution: true, approvedBudgetUsd: null };
-    expect(() => validateConfiguration(selected, server)).toThrow('senza limiti non abilitata');
-    const enabled = { ...server, capabilities: { ...server.capabilities, allowUnboundedExecution: true } };
-    expect(buildTurnRequest('Ordine ORD-1042', selected, enabled, 'unbounded-test').configuration).toEqual(selected);
-    expect(() => validateConfiguration({ ...selected, approvedBudgetUsd: 0.1 }, enabled)).toThrow('Rimuovi il budget');
-    expect(() => validateConfiguration({ ...selected, unboundedExecution: false }, enabled)).toThrow('budget approvato');
-    expect(() => validateConfiguration(selected, { ...enabled, allowLive: false })).toThrow('LIVE non');
+    expect(buildTurnRequest('Ordine ORD-1042', selected, server, 'unbounded-test').configuration).toEqual(selected);
+    expect(() => validateConfiguration({ ...selected, approvedBudgetUsd: 0.1 }, server)).toThrow('Rimuovi il budget');
+    expect(() => validateConfiguration({ ...selected, unboundedExecution: false }, server)).toThrow('budget approvato');
+    expect(() => validateConfiguration(selected, { ...server, allowLive: false })).toThrow('LIVE non');
   });
   it('costruisce il turno solo da testo, idempotency key e configurazione', () => {
     const server = liveConfigurationFor('inline');
@@ -179,7 +177,7 @@ describe('client API tipizzato', () => {
     expect(captures).toHaveLength(0);
   });
 
-  it('usa soltanto URL same-origin e conserva il vero payload nell’inspector', async () => {
+  it('usa soltanto URL same-origin e conserva il vero payload acquisito', async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({
       runId: 'run-1', conversationId: 'conversation-1', eventsUrl: 'http://internal-service/api/runs/run-1/events',
       apiKey: 'unexpected-secret',

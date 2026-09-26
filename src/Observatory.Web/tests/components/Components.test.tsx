@@ -39,29 +39,20 @@ describe('interfaccia accessibile e dati non eseguibili', () => {
     await userEvent.setup().click(screen.getByText('Modelli per agente, limiti ed esempi di prompt'));
     for (const option of screen.getAllByRole('option', { name: 'GPT-6 Sol · non disponibile in LIVE' })) expect(option).toBeDisabled();
     for (const option of screen.getAllByRole('option', { name: 'GPT-5' })) expect(option).toBeEnabled();
-    expect(screen.getByRole('spinbutton', { name: 'Budget approvato (USD)' })).toHaveAttribute('max', '0.1');
+    expect(screen.queryByRole('spinbutton', { name: 'Budget approvato (USD)' })).not.toBeInTheDocument();
   });
 
-  it('offre senza limiti solo con opt-in e disabilita i limiti ignorati senza inviare richieste', async () => {
+  it('esegue la demo senza limiti e senza mostrare controlli di budget', async () => {
     const user = userEvent.setup();
-    const change = vi.fn();
     const fetchMock = vi.fn<typeof fetch>();
     vi.stubGlobal('fetch', fetchMock);
     const server = liveConfigurationFor('inline');
-    const selected = { ...settings, approvedBudgetUsd: 0.1 };
-    const { rerender } = render(<ConfigurationPanel api={inlineApi} server={server} settings={selected} onChange={change} disabled={false} />);
+    const selected = { ...settings, unboundedExecution: true, approvedBudgetUsd: null };
+    render(<ConfigurationPanel api={inlineApi} server={server} settings={selected} onChange={vi.fn()} disabled={false} />);
     await user.click(screen.getByText('Modelli per agente, limiti ed esempi di prompt'));
+    expect(screen.getByText('La demo esegue senza limiti applicativi.')).toBeInTheDocument();
     expect(screen.queryByRole('checkbox', { name: /Senza limiti applicativi/ })).not.toBeInTheDocument();
-    const enabledServer = { ...server, capabilities: { ...server.capabilities, allowUnboundedExecution: true } };
-    rerender(<ConfigurationPanel api={inlineApi} server={enabledServer} settings={selected} onChange={change} disabled={false} />);
-    await user.click(screen.getByRole('checkbox', { name: /Senza limiti applicativi/ }));
-    const unbounded = { ...selected, unboundedExecution: true, approvedBudgetUsd: null };
-    expect(change).toHaveBeenLastCalledWith(unbounded);
-    rerender(<ConfigurationPanel api={inlineApi} server={enabledServer} settings={unbounded} onChange={change} disabled={false} />);
-    for (const name of ['Limite token di output', 'Limite chiamate modello', 'Budget approvato (USD)'])
-      expect(screen.getByRole('spinbutton', { name })).toBeDisabled();
-    await user.click(screen.getByRole('checkbox', { name: /Senza limiti applicativi/ }));
-    expect(change).toHaveBeenLastCalledWith({ ...unbounded, unboundedExecution: false });
+    expect(screen.queryByRole('spinbutton', { name: 'Budget approvato (USD)' })).not.toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

@@ -12,7 +12,7 @@ describe('preset per confronti controllati', () => {
         mode: 'live', modelProfileId: variant.model, agentModels: {}, promptProfile: variant.prompt,
         promptBlocks: { checklist: false, outputContract: false, examples: false, redundancy: variant.redundancy ?? false, conflictingStyle: false },
         historyStrategy: 'full', toolTransport: 'direct', confirmAction: false, maxOutputTokens: 1500, maxModelCalls: 24,
-        approvedBudgetUsd: 0.1,
+        approvedBudgetUsd: null, unboundedExecution: true,
       });
       expect(prepared.message).toBe(comparisonScenarios.find((item) => item.id === preset.scenarioId)?.turns[0]?.message);
       prepared.settings.agentModels.router = 'modified';
@@ -45,14 +45,15 @@ describe('preset per confronti controllati', () => {
 
   it('non inventa modelli e rispetta disponibilità e abilitazione LIVE', () => {
     for (const preset of comparisonPresets) for (const variant of preset.variants) {
-      const server = configurationFor('a2a');
+      const base = configurationFor('a2a');
+      const server = { ...base, capabilities: { ...base.capabilities, allowUnboundedExecution: true } };
       expect(() => prepareComparison(preset, variant, { ...server, allowLive: true, models: [] }, comparisonScenarios)).toThrow('Profilo modello non restituito');
       expect(() => prepareComparison(preset, variant, server, comparisonScenarios)).toThrow('LIVE non è pronto');
       expect(() => prepareComparison(preset, variant, { ...server, allowLive: true }, comparisonScenarios)).toThrow('non è configurato');
       const ready = { ...server, allowLive: true, models: server.models.map((model) => ({ ...model, configured: true })) };
       expect(() => prepareComparison(preset, variant, ready, comparisonScenarios)).toThrow('LIVE non pronto');
       expect(prepareComparison(preset, variant, liveConfigurationFor('a2a'), comparisonScenarios).settings)
-        .toMatchObject({ mode: 'live', approvedBudgetUsd: 0.1 });
+        .toMatchObject({ mode: 'live', approvedBudgetUsd: null, unboundedExecution: true });
     }
   });
 });

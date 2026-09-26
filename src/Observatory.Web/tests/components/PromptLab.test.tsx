@@ -94,7 +94,6 @@ describe('laboratorio prompt senza inferenza', () => {
     expect(screen.getByText(`Router · ${instructions.length.toLocaleString('it-IT')} caratteri`)).toBeInTheDocument();
     expect(screen.getByText(/Non è la richiesta completa né una cattura wire/)).toBeInTheDocument();
     expect(screen.getByText(/istruzioni e risorse native delle skill, history, strumenti e risultati/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Inspector delle richieste' })).toHaveAttribute('href', '#/inline/inspector');
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith('/api/inline/prompts/preview', expect.objectContaining({ method: 'POST', body: JSON.stringify(settings) }));
   });
@@ -244,7 +243,6 @@ describe('laboratorio prompt senza inferenza', () => {
     expect(fetchMock.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
     await act(async () => { response.resolve(jsonResponse(promptPreview('inline', 'VECCHIA DEMO'))); });
     expect(screen.queryByText('VECCHIA DEMO')).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Inspector delle richieste' })).toHaveAttribute('href', '#/skills/inspector');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 

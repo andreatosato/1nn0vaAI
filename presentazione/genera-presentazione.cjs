@@ -247,7 +247,7 @@ function addSource(slide, text, url) {
   });
   addSource(s, 'Fonte: Microsoft Learn · Workflow capabilities. Agent-as-tool è un pattern aggiuntivo, non il sesto workflow built-in.', sources.workflows);
   footer(s);
-  addNotes(s, "3'", `Mappa iniziale completa delle voci della pagina Workflow capabilities, consultata il 25/09/2026: ${sources.workflows}
+  addNotes(s, "2'", `Mappa iniziale completa delle voci della pagina Workflow capabilities, consultata il 25/09/2026: ${sources.workflows}
 Le quattro categorie sono Composition (Agents in workflows, Workflows as agents, Declarative workflows), Interaction and durability (Human-in-the-loop, Checkpoints and resuming), Operations (Observability, Visualization) e Multi-agent orchestration (Sequential, Concurrent, Handoff, Group Chat, Magentic).
 La slide distingue le capacità trasversali dai cinque pattern di orchestrazione: ${sources.orchestrations}
 Sequential: percorso ordinato con passaggio dei risultati. Concurrent: fan-out su attività indipendenti e aggregazione, non necessariamente dialogo reciproco. Handoff: trasferimento del controllo al destinatario. Group Chat: un manager sceglie i turni in una conversazione condivisa. Magentic: pianificazione e controllo adattivo dei progressi; non promettere efficacia universale.
@@ -416,6 +416,118 @@ TESTI INTEGRALI:
 ${specialists.map(specialist => `== ${specialist.name}\nA2A: ${specialist.a2a}\nSKILL: ${specialist.skill}\nPROCEDURA:\n${specialist.procedure}`).join('\n\n')}`);
 }
 
+// Diagrams reconstructed from the shared reasoning as editable PowerPoint shapes.
+{
+  const s = pptx.addSlide();
+  addHeader(s, 'A2A vs Skill · 1/3', 'Dove avviene il reasoning?', 'Stesso bisogno di dominio; cambia il numero di reasoner coinvolti.');
+  const panel = (x, title, subtitle, color, fill) => {
+    s.addShape(pptx.ShapeType.roundRect, { x, y: 2.12, w: 5.85, h: 4.28, rectRadius: 0.06, fill: { color: C.white }, line: { color, width: 1.3 } });
+    s.addText(title, { x: x + 0.25, y: 2.34, w: 5.35, h: 0.3, fontSize: 17, bold: true, color, align: 'center', margin: 0 });
+    s.addText(subtitle, { x: x + 0.35, y: 2.72, w: 5.15, h: 0.24, fontSize: 10.5, color: C.muted, align: 'center', margin: 0, fit: 'shrink' });
+    s.addShape(pptx.ShapeType.roundRect, { x: x + 1.45, y: 3.14, w: 2.95, h: 0.72, rectRadius: 0.04, fill: { color: fill }, line: { color, width: 1 } });
+    s.addText('MAIN AGENT', { x: x + 1.65, y: 3.36, w: 2.55, h: 0.22, fontSize: 12.5, bold: true, color, align: 'center', margin: 0 });
+  };
+  panel(0.7, 'A2A · Agent-as-tool', 'Il principale delega un task a un altro reasoner.', C.amber, C.amberPale);
+  panel(6.78, 'Distributed Skill', 'Il principale acquisisce competenza e operazioni.', C.teal, C.pale);
+
+  s.addShape(pptx.ShapeType.chevron, { x: 3.25, y: 3.95, w: 0.38, h: 0.32, rotate: 90, fill: { color: C.amber }, line: { color: C.amber } });
+  s.addText('“chiama Weather”', { x: 1.72, y: 4.02, w: 2.25, h: 0.2, fontSize: 9.5, color: C.muted, align: 'center', margin: 0 });
+  s.addShape(pptx.ShapeType.roundRect, { x: 2.15, y: 4.43, w: 2.95, h: 1.38, rectRadius: 0.04, fill: { color: C.amberPale }, line: { color: C.amber, width: 1 } });
+  s.addText('WEATHER AGENT', { x: 2.35, y: 4.62, w: 2.55, h: 0.22, fontSize: 12.5, bold: true, color: C.amber, align: 'center', margin: 0 });
+  s.addText('LLM → weather API → LLM', { x: 2.37, y: 5.05, w: 2.51, h: 0.25, fontSize: 10, color: C.ink, align: 'center', margin: 0, fit: 'shrink' });
+  s.addText('risposta testuale → Main Agent', { x: 1.45, y: 5.84, w: 4.35, h: 0.22, fontSize: 10.5, bold: true, color: C.amber, align: 'center', margin: 0 });
+
+  const skillSteps = [
+    ['WEATHER SKILL', 'SKILL.md'],
+    ['MCP TOOLS', 'weather_current() · weather_forecast()'],
+    ['WEATHER SERVICE', 'API / dati di dominio'],
+  ];
+  skillSteps.forEach(([title, body], i) => {
+    const y = 4.15 + i * 0.66;
+    s.addShape(pptx.ShapeType.roundRect, { x: 8.15, y, w: 3.08, h: 0.52, rectRadius: 0.03, fill: { color: i === 2 ? C.bluePale : C.pale }, line: { color: i === 2 ? C.blue : C.teal, width: 1 } });
+    s.addText(title, { x: 8.3, y: y + 0.08, w: 1.18, h: 0.18, fontSize: 9.5, bold: true, color: i === 2 ? C.blue : C.teal, margin: 0, fit: 'shrink' });
+    s.addText(body, { x: 9.5, y: y + 0.08, w: 1.58, h: 0.18, fontSize: 8.5, color: C.ink, align: 'right', margin: 0, fit: 'shrink' });
+    if (i < 2) s.addShape(pptx.ShapeType.chevron, { x: 9.47, y: y + 0.53, w: 0.34, h: 0.18, rotate: 90, fill: { color: C.teal }, line: { color: C.teal } });
+  });
+  s.addText('2 livelli di reasoning', { x: 1.45, y: 6.14, w: 4.35, h: 0.2, fontSize: 11.5, bold: true, color: C.red, align: 'center', margin: 0 });
+  s.addText('1 reasoning loop · servizi ancora remoti', { x: 7.55, y: 6.14, w: 4.35, h: 0.2, fontSize: 11.5, bold: true, color: C.teal, align: 'center', margin: 0 });
+  addSource(s, 'Diagrammi ricostruiti dal ragionamento ChatGPT condiviso; terminologia tecnica verificata sull’articolo Microsoft.', sources.reflection);
+  footer(s);
+  addNotes(s, "1'", `Diagrammi ricostruiti come forme native dalla conversazione condivisa: ${sources.reflection}
+A sinistra il Main Agent chiama uno specialista, che esegue un proprio ciclo LLM-tool-LLM; il principale riceve testo e continua. A destra il Main Agent carica istruzioni e usa direttamente tool MCP: il reasoning resta nel principale.
+È un confronto di architetture concettuali, non una garanzia di prestazioni. A2A è il protocollo; agent-as-tool è il pattern di delega. Fonte tecnica: ${sources.distributedSkills}`);
+}
+
+{
+  const s = pptx.addSlide();
+  addHeader(s, 'A2A vs Skill · 2/3', 'Da specialisti agentici a competenze distribuite', 'I servizi restano separati; può scomparire il modello dentro ogni specialista.');
+  const domains = [
+    ['WEATHER', 'meteo', C.blue, C.bluePale],
+    ['SAFETY', 'sicurezza', C.red, C.redPale],
+    ['SKI', 'piste', C.teal, C.pale],
+    ['LIFT', 'impianti', C.amber, C.amberPale],
+  ];
+  s.addShape(pptx.ShapeType.roundRect, { x: 0.75, y: 2.16, w: 3.55, h: 3.95, rectRadius: 0.06, fill: { color: C.white }, line: { color: C.line } });
+  s.addText('PRIMA · 5 REASONER', { x: 1.0, y: 2.4, w: 3.05, h: 0.25, fontSize: 12, bold: true, color: C.amber, align: 'center', margin: 0 });
+  s.addShape(pptx.ShapeType.roundRect, { x: 1.35, y: 2.87, w: 2.35, h: 0.58, rectRadius: 0.04, fill: { color: C.navy }, line: { color: C.navy } });
+  s.addText('MAIN AGENT · LLM', { x: 1.55, y: 3.05, w: 1.95, h: 0.2, fontSize: 11, bold: true, color: C.white, align: 'center', margin: 0 });
+  domains.forEach(([name, , color, fill], i) => {
+    const y = 3.72 + i * 0.53;
+    s.addShape(pptx.ShapeType.roundRect, { x: 1.1, y, w: 2.85, h: 0.39, rectRadius: 0.03, fill: { color: fill }, line: { color, width: 1 } });
+    s.addText(`${name} AGENT · LLM`, { x: 1.25, y: y + 0.1, w: 2.55, h: 0.16, fontSize: 9.5, bold: true, color, align: 'center', margin: 0 });
+  });
+  s.addShape(pptx.ShapeType.chevron, { x: 4.65, y: 3.69, w: 0.82, h: 0.56, fill: { color: C.mint }, line: { color: C.mint } });
+  s.addText('sposta le istruzioni\nnel principale', { x: 4.42, y: 4.45, w: 1.28, h: 0.55, fontSize: 9, bold: true, color: C.teal, align: 'center', margin: 0, fit: 'shrink' });
+
+  s.addShape(pptx.ShapeType.roundRect, { x: 5.85, y: 2.16, w: 6.73, h: 3.95, rectRadius: 0.06, fill: { color: C.white }, line: { color: C.teal, width: 1.3 } });
+  s.addText('DOPO · 1 REASONER + 4 CAPABILITY', { x: 6.1, y: 2.4, w: 6.23, h: 0.25, fontSize: 12, bold: true, color: C.teal, align: 'center', margin: 0 });
+  s.addShape(pptx.ShapeType.roundRect, { x: 7.82, y: 2.87, w: 2.75, h: 0.58, rectRadius: 0.04, fill: { color: C.navy }, line: { color: C.navy } });
+  s.addText('MAIN AGENT · LLM', { x: 8.02, y: 3.05, w: 2.35, h: 0.2, fontSize: 11, bold: true, color: C.white, align: 'center', margin: 0 });
+  domains.forEach(([name, label, color, fill], i) => {
+    const y = 3.72 + i * 0.53;
+    s.addShape(pptx.ShapeType.roundRect, { x: 6.45, y, w: 2.35, h: 0.39, rectRadius: 0.03, fill: { color: fill }, line: { color, width: 1 } });
+    s.addText(`${name} SKILL`, { x: 6.6, y: y + 0.1, w: 2.05, h: 0.16, fontSize: 9.5, bold: true, color, align: 'center', margin: 0 });
+    s.addShape(pptx.ShapeType.chevron, { x: 8.98, y: y + 0.08, w: 0.34, h: 0.22, fill: { color }, line: { color } });
+    s.addShape(pptx.ShapeType.roundRect, { x: 9.5, y, w: 2.45, h: 0.39, rectRadius: 0.03, fill: { color: C.bg }, line: { color: C.line, width: 1 } });
+    s.addText(`${label} MCP tools`, { x: 9.65, y: y + 0.1, w: 2.15, h: 0.16, fontSize: 9, color: C.ink, align: 'center', margin: 0, fit: 'shrink' });
+  });
+  s.addText('Dominio, deploy e ownership restano distribuiti.', { x: 1.2, y: 6.3, w: 10.95, h: 0.26, fontSize: 14, bold: true, color: C.ink, align: 'center', margin: 0 });
+  addSource(s, 'Diagrammi “Main Agent + specialisti” e “Main Agent + Skill → MCP tools” dalla conversazione condivisa.', sources.reflection);
+  footer(s);
+  addNotes(s, "1'", `La conversazione mostra la trasformazione Main Agent + Weather/Safety/Ski/Lift Agent in Main Agent + quattro Skill collegate ai rispettivi MCP tools: ${sources.reflection}
+Il dominio non viene centralizzato: API, dati, deploy e ownership possono restare separati. Si centralizza il reasoning quando lo specialista fornisce soprattutto procedura e operazioni.
+Non convertire automaticamente gli agenti con autonomia reale, contesto privato, modello specializzato o workflow sostanziale.`);
+}
+
+{
+  const s = pptx.addSlide();
+  addHeader(s, 'A2A vs Skill · 3/3', 'Delego il reasoning o delego la capability?', 'La scelta dipende da autonomia e isolamento, non dal fatto che il servizio sia remoto.');
+  const columns = [
+    [0.75, 'AGENT-AS-TOOL · A2A', '“Delego il reasoning”', C.amber, C.amberPale,
+      [['SPECIALIST AGENT', 'Model + Tools'], ['CONTEXT', 'privato e isolato'], ['STATE', 'lifecycle indipendente']]],
+    [6.87, 'DISTRIBUTED SKILL · MCP', '“Delego la capability”', C.teal, C.pale,
+      [['INSTRUCTIONS', 'procedura di dominio'], ['TYPED TOOLS', 'contratti operativi'], ['REMOTE SERVICE', 'business logic e dati']]],
+  ];
+  columns.forEach(([x, title, quote, color, fill, blocks]) => {
+    s.addShape(pptx.ShapeType.roundRect, { x, y: 2.16, w: 5.72, h: 3.82, rectRadius: 0.06, fill: { color: C.white }, line: { color, width: 1.3 } });
+    s.addText(title, { x: x + 0.25, y: 2.4, w: 5.22, h: 0.25, fontSize: 13, bold: true, color, align: 'center', margin: 0 });
+    s.addText(quote, { x: x + 0.35, y: 2.82, w: 5.02, h: 0.3, fontSize: 17, bold: true, color: C.ink, italic: true, align: 'center', margin: 0 });
+    blocks.forEach(([blockTitle, body], i) => {
+      const y = 3.42 + i * 0.72;
+      s.addShape(pptx.ShapeType.roundRect, { x: x + 0.78, y, w: 4.16, h: 0.55, rectRadius: 0.03, fill: { color: fill }, line: { color, width: 1 } });
+      s.addText(blockTitle, { x: x + 0.95, y: y + 0.1, w: 1.65, h: 0.18, fontSize: 10, bold: true, color, margin: 0, fit: 'shrink' });
+      s.addText(body, { x: x + 2.55, y: y + 0.1, w: 2.2, h: 0.18, fontSize: 9.5, color: C.ink, align: 'right', margin: 0, fit: 'shrink' });
+    });
+  });
+  s.addText('Scegli Agent quando deve pensare autonomamente.', { x: 0.95, y: 6.18, w: 5.25, h: 0.27, fontSize: 13, bold: true, color: C.amber, align: 'center', margin: 0 });
+  s.addText('Scegli Skill quando deve fornire competenza + operazioni.', { x: 7.03, y: 6.18, w: 5.25, h: 0.27, fontSize: 13, bold: true, color: C.teal, align: 'center', margin: 0 });
+  addSource(s, 'Diagramma conclusivo ricostruito dalla conversazione condivisa: distributed intelligence vs distributed capability.', sources.reflection);
+  footer(s);
+  addNotes(s, "1'", `La conversazione sintetizza la differenza così: Agent-as-tool = delego il reasoning; Distributed Skill = delego la capability. Diagramma originale: ${sources.reflection}
+Agent: autonomia, modello e strumenti propri, contesto e stato isolati. Skill: istruzioni, typed tools e servizio remoto; il Main Agent resta il reasoner.
+La soluzione può essere ibrida: skill per specialisti procedurali e agent-as-tool per ricerca o task autonomi.`);
+}
+
 // Considerations from the shared reasoning and Stocchi's article.
 {
   const s = pptx.addSlide();
@@ -443,7 +555,7 @@ ${specialists.map(specialist => `== ${specialist.name}\nA2A: ${specialist.a2a}\n
     { text: '  |  Ragionamento ChatGPT condiviso', options: { hyperlink: { url: sources.reflection } } },
   ], { x: 0.68, y: 6.72, w: 11.9, h: 0.2, fontSize: 7.5, color: '718690', italic: true, margin: 0, fit: 'shrink' });
   footer(s);
-  addNotes(s, "2'", `Ragionamento di partenza fornito dall'utente, letto nella pagina pubblica: ${sources.reflection}
+  addNotes(s, "1'", `Ragionamento di partenza fornito dall'utente, letto nella pagina pubblica: ${sources.reflection}
 Sintesi/parafrasi, non riproduzione integrale: tool = operazione delimitata; skill = competenza/procedura acquisita dal principale; agent-as-tool = delega a un reasoner autonomo. Il numero di processi non determina il numero di cicli LLM.
 Fonte tecnica: Tommaso Stocchi, From Specialist Agents to Distributed Skills over MCP, Microsoft Developer Blogs, 16/09/2026: ${sources.distributedSkills}
 La tesi è mantenere distribuiti i servizi di dominio e spostare le istruzioni dello specialista nell'orchestratore quando non serve un altro reasoner. Non significa sostituire qualsiasi agente con una skill: nell'articolo un agente di ricerca resta agent-as-tool in entrambe le architetture.
@@ -493,7 +605,7 @@ La foto inclusa è una conversione PNG dell'immagine pubblicata, non generata. L
     { text: '  |  Microsoft Learn · Handoff vs agent-as-tools', options: { hyperlink: { url: sources.handoff } } },
   ], { x: 0.68, y: 6.72, w: 11.9, h: 0.2, fontSize: 7.5, color: '718690', italic: true, margin: 0, fit: 'shrink' });
   footer(s);
-  addNotes(s, "2'", `PATTERN DI DIALOGO: agent-as-tool = delega con ritorno; handoff = trasferimento della responsabilità del task; group chat = turni in una conversazione condivisa; Magentic aggiunge pianificazione e verifica adattiva. Sequential e Concurrent, nella mappa iniziale, coordinano passaggio ordinato o lavoro indipendente in parallelo.
+  addNotes(s, "1'", `PATTERN DI DIALOGO: agent-as-tool = delega con ritorno; handoff = trasferimento della responsabilità del task; group chat = turni in una conversazione condivisa; Magentic aggiunge pianificazione e verifica adattiva. Sequential e Concurrent, nella mappa iniziale, coordinano passaggio ordinato o lavoro indipendente in parallelo.
 Agent-as-tool è un'ottima scelta per un sottotask con input/output chiari e responsabilità specialistica: il principale conserva il controllo complessivo e decide la risposta finale. Un modello adeguato, contesto limitato, tool pertinenti e deleghe indipendenti in parallelo possono aiutare la latenza; NON garantiscono che sia più veloce di un singolo agente. Ogni specialista può aggiungere inferenze e round-trip. Il contratto deve stabilire risultato atteso, errori, consenso e confini delle operazioni. Autorizzazione e validazione devono essere nel codice.
 Confronto ufficiale: ${sources.handoff}
 DATI ESTERNI, NON MISURE AI OBSERVATORY: ${sources.distributedSkills}
@@ -874,8 +986,8 @@ ${measuredRows.map(r => `${r.architecture.toUpperCase()} ${r.repetition} / ${r.r
   addNotes(s, "5' Q&A · 00:55–01:00", "Chiudere chiedendo al pubblico quale costo o errore misurerebbe per primo. Riservare cinque minuti alle domande. Se la demo è andata lunga, usare soltanto la frase finale e la domanda.");
 }
 
-assert.equal(pptx._slides.length, 24, 'Exactly 24 slides required');
+assert.equal(pptx._slides.length, 27, 'Exactly 27 slides required');
 assert.equal(totalMinutes, 60, 'Speaker timings must total exactly 60 minutes');
 pptx.writeFile({ fileName: path.join(__dirname, 'Osservare-AI-Andrea-Tosato-senza-limiti.pptx') })
-  .then(() => console.log(`PPT saved: 24 slides, exactly 60 minutes; six validated unbounded runs from ${path.basename(measurementsDirectory)}.`))
+  .then(() => console.log(`PPT saved: 27 slides, exactly 60 minutes; six validated unbounded runs from ${path.basename(measurementsDirectory)}.`))
   .catch(error => { console.error(error); process.exitCode = 1; });

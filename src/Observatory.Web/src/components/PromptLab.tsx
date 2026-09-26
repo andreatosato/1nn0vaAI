@@ -87,10 +87,10 @@ export function PromptLab({ api, server, settings, onChange, disabled }: {
         aria-pressed={Object.entries(preset.blocks).every(([block, enabled]) => settings.promptBlocks[block as keyof PromptBlocks] === enabled)}
         onClick={() => changeBlocks({ ...preset.blocks })}>{preset.name}</button>)}
     </div>
-    <p className="small-label">Le combinazioni cambiano solo i blocchi e azzerano il consenso alla bozza; conservano profilo prompt, modello, history, limiti e budget.</p>
+    <p className="small-label">Le combinazioni cambiano solo i blocchi e azzerano il consenso alla bozza; conservano profilo prompt, modello, history e limiti.</p>
     <section className="prompt-preview" aria-labelledby={`${id}-preview-heading`}>
       <h4 id={`${id}-preview-heading`}>Anteprima esatta delle istruzioni di base + blocchi</h4>
-      <p id={`${id}-preview-scope`}>Testo restituito dal backend usando lo stesso generatore di <code>ChatOptions.Instructions</code> dell’esecuzione. <strong>Non è la richiesta completa né una cattura wire:</strong> istruzioni e risorse native delle skill, history, strumenti e risultati vengono aggiunti dopo. Per ciò che è stato realmente inviato, apri l’<a href={`#/${server.technology}/inspector`}>Inspector delle richieste</a>.</p>
+      <p id={`${id}-preview-scope`}>Testo restituito dal backend usando lo stesso generatore di <code>ChatOptions.Instructions</code> dell’esecuzione. <strong>Non è la richiesta completa né una cattura wire:</strong> istruzioni e risorse native delle skill, history, strumenti e risultati vengono aggiunti dopo.</p>
       <div className="button-row">
         <button type="button" className="button button-primary" disabled={disabled || current?.status === 'loading'}
           aria-describedby={`${id}-preview-scope`} onClick={() => { void loadPreview(); }}><Icon name="code" />Genera anteprima dal server</button>

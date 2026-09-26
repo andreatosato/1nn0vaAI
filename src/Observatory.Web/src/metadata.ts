@@ -33,7 +33,6 @@ export const pages = [
   { id: 'chat', label: 'Configurazione', icon: 'book' },
   { id: 'examples', label: 'Confronti guidati', icon: 'play' },
   { id: 'trace', label: 'Traccia', icon: 'trace' },
-  { id: 'inspector', label: 'Inspector', icon: 'code' },
   { id: 'usage', label: 'Token e costi', icon: 'chart' },
   { id: 'history', label: 'Storico ed esperimenti', icon: 'history' },
 ] as const;

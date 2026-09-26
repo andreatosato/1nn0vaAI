@@ -9,7 +9,6 @@ import { ConfigurationPanel, reconcileSettings } from './components/Configuratio
 import { ComparisonView } from './components/ComparisonView';
 import type { PreparedComparison } from './lib/comparisonPresets';
 import { HistoryView } from './components/HistoryView';
-import { InspectorView } from './components/InspectorView';
 import { RunStatus } from './components/RunStatus';
 import { TraceView } from './components/TraceView';
 import { UsageView } from './components/UsageView';
@@ -49,21 +48,21 @@ function Header({ technology, comparison, dataPage }: { technology?: Technology;
 function Home() {
   return <main id="main-content" className="home-page" tabIndex={-1}>
     <section className="home-hero">
-      <div className="hero-copy"><p className="eyebrow">AI Observatory / architetture a confronto</p><h1 id="page-heading" tabIndex={-1}>Non solo la risposta.<br /><span>Tutto il percorso.</span></h1><p className="hero-description">Un router, tre servizi. Inline e Skills chiamano le API business; A2A delega ai tre agenti remoti. Stesso dominio, confini diversi da osservare.</p><div className="hero-labels"><span>Modalità LIVE</span><span>Catalogo pubblico DummyJSON</span><span>Ordini sintetici</span></div><p className="hero-safety">Aprire una demo non avvia modelli. Le chiamate LIVE richiedono backend e deployment abilitati, budget e consenso per ogni invio.</p></div>
+      <div className="hero-copy"><p className="eyebrow">AI Observatory / architetture a confronto</p><h1 id="page-heading" tabIndex={-1}>Non solo la risposta.<br /><span>Tutto il percorso.</span></h1><p className="hero-description">Un router, tre servizi. Inline e Skills chiamano le API business; A2A delega ai tre agenti remoti. Stesso dominio, confini diversi da osservare.</p><div className="hero-labels"><span>Modalità LIVE</span><span>Catalogo pubblico DummyJSON</span><span>Ordini sintetici</span></div><p className="hero-safety">Aprire una demo non avvia modelli. Le chiamate LIVE richiedono backend e deployment abilitati, oltre al consenso per ogni invio.</p></div>
       <div className="hero-diagram" aria-label="Router e servizi Catalog, Orders, Returns"><div className="hero-orbit" aria-hidden="true" /><span className="diagram-caption">Un router. Tre servizi.</span><div className="hero-router"><Icon name="network" /><strong>Router</strong><span>Chiama API o delega via A2A</span></div><div className="hero-specialists">{services.map((service) => <div key={service}><span className="mini-dot" /><strong>{serviceMetadata[service].name}</strong></div>)}</div><span className="diagram-footnote">Ogni servizio: API business · agente A2A · skill</span><span className="diagram-footnote">Schema didattico · non una traccia di esecuzione</span></div>
     </section>
     <section className="demo-selection" aria-labelledby="demo-selection-title"><div className="section-heading"><div><p className="eyebrow">Scegli il punto di osservazione</p><h2 id="demo-selection-title">Tre demo. Nessuna scatola nera.</h2></div><span className="muted">Conversazioni e storico separati</span></div><div className="demo-cards">{(['a2a', 'skills', 'inline'] as const).map((technology) => {
       const meta = demoMetadata[technology];
       return <a className={`demo-card accent-${meta.accent}`} href={`#/${technology}`} key={technology}><div className="demo-card-top"><span className="demo-number">{meta.number}</span><Icon name={technology === 'a2a' ? 'network' : technology === 'skills' ? 'book' : 'code'} /></div><p className="eyebrow">{meta.subtitle}</p><h3>{meta.title}</h3><p>{meta.description}</p><div className="demo-card-footer"><span>Apri laboratorio</span><Icon name="arrow" /></div></a>;
     })}</div></section>
-    <section className="home-bottom"><div><Icon name="code" /><h3>Le richieste, non le ipotesi</h3><p>Inspector con prompt e history registrati, distinto tra catture logical e wire.</p></div><div><Icon name="chart" /><h3>Confronti senza risultati inventati</h3><p>GPT-5 ↔ GPT-6, Astra/Sol ↔ Luna. Prima un dry run; poi misure e provenienza effettive.</p></div><div><Icon name="check" /><h3>Immagini solo nell’interfaccia</h3><p>I prodotti decorano le risposte tramite ID. Nessuna immagine viene allegata alle richieste chat.</p></div></section>
+    <section className="home-bottom"><div><Icon name="code" /><h3>Configurazioni esplicite</h3><p>Prompt, history e strumenti sono dichiarati prima di ogni invio.</p></div><div><Icon name="chart" /><h3>Confronti senza risultati inventati</h3><p>GPT-5 ↔ GPT-6, Astra/Sol ↔ Luna. Prima un dry run; poi misure e provenienza effettive.</p></div><div><Icon name="check" /><h3>Immagini solo nell’interfaccia</h3><p>I prodotti decorano le risposte tramite ID. Nessuna immagine viene allegata alle richieste chat.</p></div></section>
   </main>;
 }
 
 function DemoWorkspace({ technology, page, sharedDataRoute = false }: { technology: Technology; page: Page | 'data'; sharedDataRoute?: boolean }) {
   const demo = useDemo(technology);
   const [settings, setSettings] = useState<RunConfiguration | null>(null);
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useState('Vorrei una camicia.');
   const [chatOpen, setChatOpen] = useState(false);
   const [composerFocus, setComposerFocus] = useState(0);
   const [guideRequest, setGuideRequest] = useState<Pick<PreparedComparison, 'scenarioId' | 'label'> | null>(null);
@@ -82,9 +81,7 @@ function DemoWorkspace({ technology, page, sharedDataRoute = false }: { technolo
     if (demo.tracked || demo.conversation) setSettings((previous) => previous ? { ...previous, confirmAction: false } : previous);
   }, [demo.tracked?.runId, demo.conversation?.id]);
   useEffect(() => {
-    if (demo.pendingText) {
-      setDraft((previous) => previous.trim() === demo.pendingText ? '' : previous);
-    }
+    if (demo.pendingText) setDraft((previous) => previous.trim() === demo.pendingText ? '' : previous);
   }, [demo.pendingText]);
 
   return <><main id="main-content" className={`workspace workspace-with-chat${chatOpen ? ' workspace-chat-open' : ''} accent-${metadata.accent}`} tabIndex={-1}>
@@ -96,7 +93,6 @@ function DemoWorkspace({ technology, page, sharedDataRoute = false }: { technolo
     <nav className="page-tabs" aria-label="Pagine del laboratorio">{pages.map((item) => <a href={`#/${technology}/${item.id}`} key={item.id} aria-current={!sharedDataRoute && page === item.id ? 'page' : undefined}><Icon name={item.icon} />{item.label}</a>)}</nav>
     {!sharedDataRoute && demo.configuration.loading && <p className="loading-line" role="status">Lettura configurazione API… Nessuna chiamata al modello.</p>}
     {!sharedDataRoute && demo.configuration.error && <ErrorBox message={demo.configuration.error} retry={demo.configuration.reload} title="La demo non può inviare richieste" />}
-    {!sharedDataRoute && server && !settings && !demo.configuration.loading && <ErrorBox message="Il backend non ha restituito modelli, prompt o strategie di history supportati. Nessun profilo fittizio viene aggiunto." retry={demo.configuration.reload} />}
     {server && settings && page === 'chat' && <ConfigurationPanel api={demo.api} server={server} settings={settings} onChange={setSettings} disabled={demo.busy || Boolean(demo.failedSubmission)} />}
     {server && settings && page === 'examples' && <ComparisonView server={server} scenarios={demo.scenarios}
       disabled={demo.busy || Boolean(demo.failedSubmission) || Boolean(demo.configuration.error) || demo.configuration.loading}
@@ -117,7 +113,6 @@ function DemoWorkspace({ technology, page, sharedDataRoute = false }: { technolo
       setComposerFocus((previous) => previous + 1);
     }} />}
     {page === 'trace' && <TraceView run={currentRun} events={demo.monitor.events} calls={demo.monitor.calls} />}
-    {page === 'inspector' && <InspectorView calls={demo.monitor.calls} captures={demo.captures} />}
     {page === 'usage' && <UsageView run={currentRun} calls={demo.monitor.calls} runs={demo.runs.data}
       conversationId={demo.conversation?.id ?? null} runsError={demo.runs.error} />}
     {page === 'history' && <HistoryView demo={demo} settings={settings} />}

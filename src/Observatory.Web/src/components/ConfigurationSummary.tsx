@@ -21,7 +21,7 @@ export function ConfigurationSummary({ title, settings, server }: {
       <div><dt>Profilo prompt</dt><dd>{promptExamples[settings.promptProfile].name}</dd></div>
       <div><dt>Blocchi opzionali</dt><dd>{enabledBlocks} di {promptBlockIds.length} attivi</dd></div>
       <div><dt>Memoria</dt><dd>{settings.historyStrategy === 'full' ? 'Completa' : 'Compatta'}</dd></div>
-      {settings.unboundedExecution && <div><dt>Limiti applicativi</dt><dd>Nessun tetto di spesa, chiamate o durata; output predefinito del provider.</dd></div>}
+      {settings.unboundedExecution && <div><dt>Limiti applicativi</dt><dd>Nessun limite per chiamate o durata; output predefinito del provider.</dd></div>}
       {overrides.length > 0 && <div className="summary-overrides"><dt>Override · prevalgono sul modello base</dt><dd><ul>
         {overrides.map(([agent, model]) => <li key={agent}>{agentName(agent) ?? redactText(agent)}: {modelLabel(model)}</li>)}
       </ul></dd></div>}

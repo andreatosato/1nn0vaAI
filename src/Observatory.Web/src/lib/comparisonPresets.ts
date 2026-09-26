@@ -55,7 +55,7 @@ export function comparisonSettings(variant: ComparisonVariant): RunConfiguration
     mode: 'live', modelProfileId: variant.model, agentModels: {}, promptProfile: variant.prompt,
     promptBlocks: { ...defaultPromptBlocks, redundancy: variant.redundancy ?? false },
     historyStrategy: 'full', toolTransport: 'direct', confirmAction: false,
-    maxOutputTokens: 1500, maxModelCalls: 24, approvedBudgetUsd: 0.1,
+    maxOutputTokens: 1500, maxModelCalls: 24, approvedBudgetUsd: null, unboundedExecution: true,
   };
 }
 

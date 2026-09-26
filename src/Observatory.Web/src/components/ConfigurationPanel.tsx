@@ -23,7 +23,7 @@ export function initialSettings(server: DemoConfiguration): RunConfiguration | n
     modelProfileId: model.id, agentModels: {}, promptProfile: prompt.data,
     promptBlocks: { ...defaultPromptBlocks },
     historyStrategy: history.data, toolTransport: 'direct', confirmAction: false,
-    maxOutputTokens: 1500, maxModelCalls: 24,
+    maxOutputTokens: 1500, maxModelCalls: 24, approvedBudgetUsd: null, unboundedExecution: true,
   };
 }
 
@@ -88,7 +88,7 @@ export function ConfigurationPanel({ api, server, settings, onChange, disabled }
       <div><strong>Attenzione: ci sono override per agente.</strong><p>{overrides.map(([agent, model]) => `${agentName(agent) ?? redactText(agent)}: ${redactText(server.models.find((item) => item.id === model)?.name ?? model)}`).join(' · ')}. Queste scelte prevalgono sul profilo modello, anche quando lo cambi.</p></div>
       <button type="button" className="button button-small" disabled={disabled} onClick={() => update({ agentModels: {}, confirmAction: false })}>Usa il profilo modello per tutti gli agenti</button>
     </div>}
-    <p className="config-notice"><strong>LIVE usa chiamate reali, potenzialmente a pagamento.</strong> Servono backend e modello abilitati, budget valido oppure esecuzione senza limiti esplicitamente abilitata, e consenso al singolo invio. Cambiare opzioni non autorizza né avvia una chiamata.</p>
+    <p className="config-notice"><strong>LIVE usa chiamate reali.</strong> La demo esegue senza limiti applicativi; restano necessari backend e modello abilitati, oltre al consenso al singolo invio.</p>
     {disabled && <p className="config-notice">Impostazioni bloccate durante invio, esecuzione o invio dall’esito incerto. Un retry riutilizza il payload già inviato, non nuove impostazioni.</p>}
     {!server.allowLive && <p className="config-notice" role="status">LIVE non è pronto: il backend deve abilitare l'inferenza e verificare deployment, prezzi e capacità dei modelli. Nessuna richiesta verrà reindirizzata a un provider alternativo.</p>}
     <PromptLab api={api} server={server} settings={settings} onChange={update} disabled={disabled} />
@@ -108,12 +108,9 @@ export function ConfigurationPanel({ api, server, settings, onChange, disabled }
           const reason = settings.mode === 'live' ? liveModelUnavailableReason(model, server) : null;
           return <option key={model.id} value={model.id} disabled={Boolean(reason)} title={reason ?? undefined}>{model.name}{reason ? ' · non disponibile in LIVE' : ''}</option>;
         })}</select></label>)}
-        {server.capabilities.allowUnboundedExecution && <label className="checkbox-label"><input type="checkbox" checked={settings.unboundedExecution ?? false} onChange={(event) => update({ unboundedExecution: event.target.checked, approvedBudgetUsd: null })} /><span>Senza limiti applicativi: nessun tetto di spesa, chiamate o durata; output predefinito del provider. Restano consenso, annullamento e controlli sulle azioni.</span></label>}
-        <label>Limite token di output<input type="number" disabled={settings.unboundedExecution} min={1} step={1} value={settings.maxOutputTokens} onChange={(event) => update({ maxOutputTokens: Number(event.target.value) })} /></label>
-        <label>Limite chiamate modello<input type="number" disabled={settings.unboundedExecution} min={1} step={1} value={settings.maxModelCalls} onChange={(event) => update({ maxModelCalls: Number(event.target.value) })} /></label>
-        {settings.mode === 'live' && <label>Budget approvato (USD)<input type="number" disabled={settings.unboundedExecution} min={0.01} step={0.01} max={server.capabilities.maxApprovedBudgetUsd} value={settings.approvedBudgetUsd ?? ''} placeholder={settings.unboundedExecution ? 'Senza tetto di spesa' : 'Nessun budget approvato'} onChange={(event) => update({ approvedBudgetUsd: event.target.value ? Number(event.target.value) : null })} /></label>}
+        <p className="config-notice">La demo esegue senza limiti applicativi.</p>
       </fieldset>
-      <div className="prompt-example"><strong>{example.name}</strong><p>{example.description}</p><blockquote>{example.example}</blockquote><p className="muted">Esempio illustrativo, non una copia del prompt inviato. Le istruzioni effettive e la history realmente inviata sono nell’Inspector.</p></div>
+      <div className="prompt-example"><strong>{example.name}</strong><p>{example.description}</p><blockquote>{example.example}</blockquote><p className="muted">Esempio illustrativo, non una copia del prompt inviato. Le istruzioni e la history effettive dipendono dalla configurazione registrata nel run.</p></div>
     </details>
   </section>;
 }

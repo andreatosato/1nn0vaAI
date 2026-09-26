@@ -16,7 +16,7 @@ export function ComparisonView({ server, scenarios, disabled, needsNewChat, onAp
         <button type="button" className="button button-small" onClick={onOpenChat}>Apri chat</button>
       </SectionHeading>
       <p>Scegli una variante e premi <strong>Prepara</strong>: configura il bot e inserisce il primo messaggio, senza inviare richieste.</p>
-      <p className="small-label">Modalità LIVE. Nuova chat tra varianti; attendi ogni risposta. Ogni invio richiede consenso e un budget esplicito. {server.allowLive ? 'Il backend è pronto per le inferenze.' : 'Il backend non è ancora abilitato per le inferenze.'}</p>
+      <p className="small-label">Modalità LIVE senza limiti applicativi. Nuova chat tra varianti; attendi ogni risposta. Ogni invio richiede consenso. {server.allowLive ? 'Il backend è pronto per le inferenze.' : 'Il backend non è ancora abilitato per le inferenze.'}</p>
       {needsNewChat && <div className="notice notice-warning" role="status">C’è già una prova nello storico corrente. Nel bot premi “Nuova chat” prima di applicare un preset, per non contaminare il confronto. Lo storico non viene cancellato.</div>}
       {disabled && <p role="status">Preparazione bloccata durante operazioni, run attivi o invii dall’esito incerto.</p>}
       {scenarios.loading && <p role="status">Lettura conversazioni DEVELOPMENT…</p>}
