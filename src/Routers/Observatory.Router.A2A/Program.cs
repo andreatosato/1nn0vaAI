@@ -1,8 +1,8 @@
-using Observatory.Api;
-using Observatory.Core;
-using Observatory.Router.Api;
+using Observatory.Router.A2A;
+using Observatory.RouterHost;
 
-var builder = DemoApiApplication.CreateBuilder(args, DemoTechnologies.A2A);
-builder.Services.AddSingleton<IAgentRuntime, RouterAgent>();
-var app = await DemoApiApplication.BuildAsync(builder);
-await app.RunAsync();
+// A2A router: an agent with a model that delegates to three remote specialist agents over the A2A protocol.
+// Each specialist runs in its own process with its own model, instructions and tools.
+var builder = RouterHostApplication.CreateBuilder<A2ARouter>(args, A2ARouter.Architecture);
+var app = await RouterHostApplication.BuildAsync(builder);
+app.Run();

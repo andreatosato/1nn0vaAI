@@ -1,6 +1,6 @@
 using Observatory.Core;
 
-namespace Observatory.Api;
+namespace Observatory.RouterHost;
 
 public sealed class ExperimentService(IShopCatalog data, ObservatorySettings settings)
 {

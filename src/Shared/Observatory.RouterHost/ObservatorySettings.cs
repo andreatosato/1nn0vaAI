@@ -1,8 +1,8 @@
 using System.Globalization;
-using Observatory.Agents;
+using Observatory.AgentRuntime;
 using Observatory.Core;
 
-namespace Observatory.Api;
+namespace Observatory.RouterHost;
 
 public sealed class ObservatorySettings
 {
@@ -10,13 +10,15 @@ public sealed class ObservatorySettings
     private static readonly string[] Histories = ["full", "compact"];
     private static readonly string[] Transports = ["direct"];
     private readonly IConfiguration configuration;
+    private readonly DemoArchitecture architecture;
 
-    public ObservatorySettings(IConfiguration configuration)
+    public ObservatorySettings(IConfiguration configuration, DemoArchitecture architecture)
     {
         this.configuration = configuration;
-        Technology = configuration["Demo:Technology"] ?? DemoTechnologies.Inline;
+        this.architecture = architecture;
+        Technology = architecture.Technology;
         if (!DemoTechnologies.All.Contains(Technology, StringComparer.Ordinal))
-            throw new InvalidOperationException("Demo:Technology must be inline, skills or a2a.");
+            throw new InvalidOperationException("The router architecture must be inline, skills or a2a.");
         Workers = ReadRange("Processing:Workers", 2, 1, 16);
         QueueCapacity = ReadRange("Processing:QueueCapacity", 64, 1, 4096);
         MaxPendingRuns = ReadRange("Processing:MaxPendingRuns", 256, 1, 10000);
@@ -67,15 +69,10 @@ public sealed class ObservatorySettings
         mcp = false, a2a = Technology == DemoTechnologies.A2A, skills = Technology == DemoTechnologies.Skills,
         toolTransports = Transports,
         historyStrategies = Histories,
-        agentNames = AgentNames.ForTechnology(Technology),
+        agentNames = architecture.Agents,
         serviceNames = AgentNames.Specialists,
         businessApi = Technology != DemoTechnologies.A2A,
-        executionTopology = Technology switch
-        {
-            DemoTechnologies.Inline => "router-http",
-            DemoTechnologies.Skills => "router-skills-http",
-            _ => "router-a2a"
-        },
+        executionTopology = architecture.Topology,
         modelCapabilities = Models.Select(m => new
         {
             modelProfileId = m.Id,
@@ -127,7 +124,7 @@ public sealed class ObservatorySettings
         if (value.MaxOutputTokens is < 1 or > 16384) Invalid("invalid_output_limit", "MaxOutputTokens must be between 1 and 16384.");
         if (value.AgentModels is null || value.AgentModels.Count > 16)
             Invalid("invalid_agent_models", "AgentModels must be an object with at most 16 known agent names.");
-        var knownAgents = AgentNames.ForTechnology(Technology);
+        var knownAgents = architecture.Agents;
         foreach (var name in value.AgentModels!.Keys)
             if (!knownAgents.Contains(name, StringComparer.Ordinal))
                 Invalid("invalid_agent_name", $"Agent '{name}' is not active for {Technology}.");

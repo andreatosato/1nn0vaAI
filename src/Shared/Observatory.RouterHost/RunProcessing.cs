@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Threading.Channels;
 using Observatory.Core;
 
-namespace Observatory.Api;
+namespace Observatory.RouterHost;
 
 public sealed class RunCoordinator(EvidenceStore store, ObservatorySettings settings, IShopCatalog data)
 {
@@ -58,7 +58,7 @@ public sealed class RunCoordinator(EvidenceStore store, ObservatorySettings sett
 public sealed class RunWorker(EvidenceStore store, RunCoordinator coordinator, IAgentRuntime runtime,
     ObservatorySettings settings, EvidenceSanitizer sanitizer, ILogger<RunWorker> logger) : BackgroundService
 {
-    private static readonly ActivitySource Activities = new("Observatory.Api");
+    private static readonly ActivitySource Activities = new("Observatory.RouterHost");
 
     public override Task StartAsync(CancellationToken cancellationToken)
     {

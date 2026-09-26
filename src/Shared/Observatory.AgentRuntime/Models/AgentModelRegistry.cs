@@ -1,42 +1,8 @@
 using System.Globalization;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Observatory.Core;
 
-namespace Observatory.Agents;
-
-public static class AgentNames
-{
-    public const string Router = "router";
-    public const string Catalog = "catalog";
-    public const string Orders = "orders";
-    public const string Returns = "returns";
-    public static readonly string[] All = [Router, Catalog, Orders, Returns];
-    public static readonly string[] Specialists = [Catalog, Orders, Returns];
-
-    public static IReadOnlyList<string> ForTechnology(string technology) => technology switch
-    {
-        DemoTechnologies.Inline or DemoTechnologies.Skills => [Router],
-        DemoTechnologies.A2A => All,
-        _ => throw new DomainException("unknown_technology", "Tecnologia non supportata.")
-    };
-}
-
-public static class AgentServiceCollectionExtensions
-{
-    public static IServiceCollection AddObservatoryAgents(this IServiceCollection services, IConfiguration configuration)
-    {
-        services.AddLogging();
-        services.TryAddSingleton(new AgentModelRegistry(configuration));
-        services.TryAddSingleton(new AgentTransportAccess(configuration));
-        services.TryAddSingleton<ShopServiceClient>();
-        services.TryAddSingleton<A2ATransport>();
-        services.TryAddSingleton<ModelProviderFactory>();
-        services.TryAddSingleton<AgentSession>();
-        return services;
-    }
-}
+namespace Observatory.AgentRuntime;
 
 public sealed record ModelRegistration(ModelDefinition Model, string Provider, bool FunctionCallingVerified,
     bool MaxOutputTokensVerified, string[] SentParameters, string PromptNotice)
@@ -49,23 +15,6 @@ public sealed class AgentModelRegistry(IConfiguration configuration)
     public IConfiguration Configuration { get; } = configuration;
     public bool AllowLive => Configuration.GetValue<bool?>("Demo:AllowLive")
         ?? Configuration.GetValue<bool>("AllowLive");
-    public string SkillsDirectory => Configuration["Agents:SkillsDirectory"] ?? Path.Combine(AppContext.BaseDirectory, "Skills");
-
-    public Uri ServiceEndpoint(string role)
-    {
-        var port = role switch
-        {
-            AgentNames.Catalog => 5205,
-            AgentNames.Orders => 5206,
-            AgentNames.Returns => 5207,
-            _ => throw new DomainException("unknown_agent", "Servizio non registrato.")
-        };
-        var address = Configuration[$"Agents:Endpoints:{role}"] ?? $"http://localhost:{port}";
-        if (!Uri.TryCreate(address, UriKind.Absolute, out var endpoint))
-            throw new DomainException("invalid_service_endpoint", $"Agents:Endpoints:{role} deve essere un URI assoluto.");
-        return endpoint;
-    }
-
     public IReadOnlyList<ModelRegistration> Registrations => ModelCatalog.Defaults.Select(model =>
     {
         var section = Configuration.GetSection($"Models:{model.Id}");

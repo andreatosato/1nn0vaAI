@@ -1,8 +1,9 @@
-using Observatory.Api;
-using Observatory.Core;
-using Observatory.Skills.Api;
+using Observatory.Router.Skills;
+using Observatory.RouterHost;
 
-var builder = DemoApiApplication.CreateBuilder(args, DemoTechnologies.Skills);
-builder.Services.AddSingleton<IAgentRuntime, SkillsAgent>();
-var app = await DemoApiApplication.BuildAsync(builder);
-await app.RunAsync();
+// Skills router: one agent with a model. It loads the skills of the three remote specialists from their
+// skill sites (skill-catalog, skill-orders, skill-returns) on demand and calls the shop HTTP tools itself.
+var builder = RouterHostApplication.CreateBuilder<SkillsRouter>(args, SkillsRouter.Architecture);
+builder.Services.AddHttpClient("skills");
+var app = await RouterHostApplication.BuildAsync(builder);
+app.Run();

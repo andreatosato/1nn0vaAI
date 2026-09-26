@@ -3,15 +3,35 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
     <UserSecretsId>892501ea-ef57-4d1f-a29c-70370fef3578</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.JavaScript" Version="13.4.6" />
-    <ProjectReference Include="..\Observatory.Api\Observatory.Api.csproj" />
-    <ProjectReference Include="..\Observatory.AgentHost\Observatory.AgentHost.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Label="Shop business APIs">
+    <ProjectReference Include="..\Shop\Observatory.Shop.Catalog\Observatory.Shop.Catalog.csproj" />
+    <ProjectReference Include="..\Shop\Observatory.Shop.Orders\Observatory.Shop.Orders.csproj" />
+    <ProjectReference Include="..\Shop\Observatory.Shop.Returns\Observatory.Shop.Returns.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Label="Specialist agents">
+    <ProjectReference Include="..\Agents\Observatory.Agent.Catalog\Observatory.Agent.Catalog.csproj" />
+    <ProjectReference Include="..\Agents\Observatory.Agent.Orders\Observatory.Agent.Orders.csproj" />
+    <ProjectReference Include="..\Agents\Observatory.Agent.Returns\Observatory.Agent.Returns.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Label="Skill sites">
+    <ProjectReference Include="..\Skills\Observatory.Skill.Catalog\Observatory.Skill.Catalog.csproj" />
+    <ProjectReference Include="..\Skills\Observatory.Skill.Orders\Observatory.Skill.Orders.csproj" />
+    <ProjectReference Include="..\Skills\Observatory.Skill.Returns\Observatory.Skill.Returns.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Label="Routers">
+    <ProjectReference Include="..\Routers\Observatory.Router.Inline\Observatory.Router.Inline.csproj" />
+    <ProjectReference Include="..\Routers\Observatory.Router.Skills\Observatory.Router.Skills.csproj" />
+    <ProjectReference Include="..\Routers\Observatory.Router.A2A\Observatory.Router.A2A.csproj" />
   </ItemGroup>
 
 </Project>

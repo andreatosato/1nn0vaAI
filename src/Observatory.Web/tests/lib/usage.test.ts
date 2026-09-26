@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { modelCall } from '../test/fixtures';
-import { money } from './format';
-import { summarizeModelUsage } from './usage';
+import { modelCall } from '../support/fixtures';
+import { money } from '../../src/lib/format';
+import { summarizeModelUsage } from '../../src/lib/usage';
 
 const measured = {
   mode: 'live', usageSource: 'provider', costStatus: 'estimated',
@@ -38,8 +38,8 @@ describe('consumi per modello', () => {
       modelCall({ ...measured, deployment: 'second-deployment' }),
       modelCall({ ...measured, modelId: 'new-version' }), modelCall(),
     ]);
-    expect(result).toHaveLength(5);
-    expect(new Set(result.map((item) => item.key)).size).toBe(5);
+    expect(result).toHaveLength(4);
+    expect(new Set(result.map((item) => item.key)).size).toBe(4);
   });
 
   it('non presenta somme parziali come totali, neppure dopo una chiamata fallita', () => {

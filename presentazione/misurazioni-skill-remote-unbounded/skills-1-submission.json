@@ -1,0 +1,27 @@
+{
+  "conversationId": "fbdbc35b1bf0457787565849d9e09256",
+  "payload": {
+    "message": "Per l'ordine ORD-1042, dimmi quando e stato consegnato, se posso restituirlo perche difettoso al primo utilizzo e quale importo mi spetterebbe. Consigliami anche una camicia disponibile sotto i 40 USD, con ID e prezzo. Non creare bozze ne eseguire azioni.",
+    "configuration": {
+      "agentModels": {},
+      "confirmAction": false,
+      "promptBlocks": {
+        "conflictingStyle": false,
+        "outputContract": false,
+        "examples": false,
+        "checklist": false,
+        "redundancy": false
+      },
+      "maxModelCalls": 24,
+      "maxOutputTokens": 4096,
+      "unboundedExecution": true,
+      "toolTransport": "direct",
+      "approvedBudgetUsd": null,
+      "historyStrategy": "full",
+      "modelProfileId": "gpt5",
+      "promptProfile": "good",
+      "mode": "live"
+    },
+    "idempotencyKey": "7be42b2064df45c68e767f2f46e66e1d"
+  }
+}

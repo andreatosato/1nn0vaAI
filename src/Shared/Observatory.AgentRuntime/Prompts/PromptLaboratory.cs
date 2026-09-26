@@ -1,7 +1,7 @@
 using System.Text;
 using Observatory.Core;
 
-namespace Observatory.Agents;
+namespace Observatory.AgentRuntime;
 
 /// <summary>Un blocco di istruzioni selezionabile, non un'autorizzazione o una capacità del modello.</summary>
 public sealed record PromptBlockDefinition(string Id, string Label, string Description);
@@ -23,27 +23,27 @@ public static class PromptLaboratory
         new("conflictingStyle", "Stile contraddittorio", "Richiede contemporaneamente una frase e molti paragrafi. Non modifica sicurezza o autorizzazioni.")
     ]);
 
-    public static PromptPreviewResponse Preview(string technology, RunConfiguration configuration)
+    /// <summary>Request used only to render instructions: no run, no model, no tools.</summary>
+    public static AgentRunRequest PreviewRequest(string technology, RunConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(configuration.PromptBlocks);
-        var request = new AgentRunRequest
+        return new AgentRunRequest
         {
             RunId = "prompt-preview", ConversationId = "prompt-preview",
             Technology = technology, Message = "", Configuration = configuration
         };
-        var agents = AgentNames.ForTechnology(technology).Select(role =>
-        {
-            var instructions = AgentPrompts.Instructions(role, request);
-            return new AgentPromptPreview(role, instructions, instructions.Length);
-        }).ToArray();
-        return new(technology, agents,
+    }
+
+    public static AgentPromptPreview For(string agent, string instructions) => new(agent, instructions, instructions.Length);
+
+    public static PromptPreviewResponse Preview(string technology, IReadOnlyList<AgentPromptPreview> agents) =>
+        new(technology, agents,
             "Istruzioni configurate esatte (ChatOptions.Instructions), non la richiesta completa al modello. " +
             "Cronologia, messaggio utente, definizioni dei tool e contesto del provider Skills vengono aggiunti a runtime; " +
             "skill e risultati dei tool dipendono dall'esecuzione. Le richieste realmente inviate sono nell'Inspector. " +
             "Il framework può aggiungere testo standard non localizzato. " +
             "Il conteggio indica caratteri UTF-16, non token. Anteprima senza modelli, tool o scritture.");
-    }
 
     internal static string Append(string instructions, PromptBlockSelection selection)
     {

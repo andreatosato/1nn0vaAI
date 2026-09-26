@@ -19,7 +19,7 @@ export function ChatWidget({ technology, open, onOpenChange, focusRequest, mode,
   useEffect(() => {
     if (open) {
       const composer = panel.current?.querySelector<HTMLTextAreaElement>('textarea:not(:disabled)');
-      (composer ?? heading.current)?.focus();
+      (composer ?? heading.current)?.focus({ preventScroll: true });
     } else if (restoreFocus.current) {
       launcher.current?.focus({ preventScroll: true });
       restoreFocus.current = false;
@@ -59,16 +59,16 @@ export function ChatWidget({ technology, open, onOpenChange, focusRequest, mode,
     <section ref={panel} id={`${id}-panel`} className="chat-widget-panel" role="dialog" aria-modal="false"
       aria-labelledby={`${id}-title`} aria-describedby={`${id}-description`} hidden={!open} inert={!open} aria-hidden={!open}>
       <header className="chat-widget-heading">
-        <div><p className="eyebrow">Bot della demo attiva</p><h2 ref={heading} id={`${id}-title`} tabIndex={-1}>Chat con il Router · {title}</h2></div>
+        <div><h2 ref={heading} id={`${id}-title`} tabIndex={-1}>Chat con il Router · {title}</h2></div>
         <button type="button" className="button chat-widget-close" aria-label={`Chiudi chat ${title}`} onClick={close}><Icon name="close" /></button>
       </header>
-      <div className="chat-widget-body" tabIndex={0} aria-label={`Contenuto chat ${title}`}>
+      <div className="chat-widget-body" aria-label={`Contenuto chat ${title}`}>
         <div className="chat-widget-context">
           <div><span className="small-label">Prossimo invio</span><ModeBadge mode={mode} /><a href={`#/${technology}/chat`} aria-label={`Apri configurazione della demo ${title}`} onClick={() => {
             onOpenChange(false);
             document.getElementById('page-heading')?.focus();
           }}>Configurazione</a></div>
-          <p id={`${id}-description`}>Solo demo {title}. Chiudere conserva bozza e conversazione, senza annullare il run. Esc chiude; Tab permette di tornare alla pagina.</p>
+          <p className="sr-only" id={`${id}-description`}>Solo demo {title}. Chiudere conserva bozza e conversazione, senza annullare il run. Esc chiude; Tab permette di tornare alla pagina.</p>
         </div>
         {children}
       </div>

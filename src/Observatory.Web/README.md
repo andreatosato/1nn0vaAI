@@ -42,7 +42,9 @@ usano comunque `crypto.getRandomValues`; non si ricorre a `Math.random`.
   Nessuna conversazione o chiamata modello viene creata automaticamente.
 - La configurazione iniziale usa LIVE come unica modalità. Ogni invio richiede
   modello configurato, `liveReady=true`, budget esplicito entro
-  `maxApprovedBudgetUsd` e consenso esplicito al singolo invio. I batch
+  `maxApprovedBudgetUsd` oppure opt-in **Senza limiti applicativi** autorizzato
+  dal backend, e consenso esplicito al singolo invio. Nessun budget o consenso
+  viene scelto automaticamente. I batch
   eseguibili da questa UI sono disabilitati.
 - La guida legge gli scenari DEVELOPMENT da `/scenarios`, con `main-six-turns`
   selezionato inizialmente e i casi holdout esclusi. Mostra domini/fatti attesi
@@ -121,6 +123,18 @@ spiega la sequenza, gli output attesi e le differenze fra architetture.
 pannello e prepara una domanda testuale; non la invia e non allega immagini.
 Nel widget compaiono solo i prodotti citati dalle risposte, mai l'intero catalogo.
 
+Messaggi e risposta occupano l'area centrale con scorrimento indipendente;
+il compositore compatto rimane separato in basso, con modello, budget/opt-in
+e consenso LIVE visibili. **Opzioni chat**, chiuso inizialmente, raccoglie nuova
+conversazione, storico, guida, configurazione completa e consenso alla bozza
+sintetica. Preparare una domanda dalla guida richiude le opzioni.
+**Dettagli run** raccoglie snapshot, consumi e controlli tecnici: non precedono
+piu la risposta come lunghi riepiloghi aperti. Errori e annullamento rimangono
+visibili senza aprire i dettagli; durante l'elaborazione compare il tempo trascorso.
+All'apertura o al cambio conversazione viene raggiunto l'ultimo messaggio.
+Se si sta leggendo lo storico, gli aggiornamenti non spostano la lettura:
+**Vai all'ultima risposta** permette di raggiungere il nuovo contenuto.
+
 - Il dialogo non modale si chiama **Chat con il Router · {demo}**; il pulsante
   espone **Apri chat {demo}**, `aria-expanded` e `aria-controls`.
 - Enter/Spazio aprono; il focus raggiunge il messaggio, oppure il titolo se il
@@ -139,14 +153,19 @@ Nel widget compaiono solo i prodotti citati dalle risposte, mai l'intero catalog
   il run**. Bozza, messaggi e impostazioni restano disponibili anche cambiando
   pagina nella stessa demo; SSE/polling continuano a seguire il run chiuso nella UI.
 - Stato, errori, retry idempotente, riconnessione e **Annulla run** sono disponibili
-  nel pannello aperto, oppure nella pagina quando è chiuso. Soltanto l'azione
+  nel pannello aperto (controlli tecnici in **Dettagli run**), oppure nella pagina quando è chiuso. Soltanto l'azione
   esplicita “Annulla run” invia una cancellazione.
+- Durante un run attivo, anche con SSE connesso, una GET ogni 2,5 secondi
+  recupera lo stato autorevole. Un flusso aperto ma silenzioso non impedisce
+  quindi di ricevere il risultato finale. Alla conclusione stream e timer
+  vengono chiusi; gli errori GET sono espliciti e ritentabili. Non si reinvia
+  il turno e non si effettua una nuova chiamata modello.
 
 Il desktop riserva spazio laterale alla chat. Su mobile il pannello usa il
 viewport dinamico e le safe area, con margini laterali di almeno 8px sullo spazio
 utile anche con scrollbar classiche, senza dimensionare la larghezza in `vw`.
-Intestazione e chiusura restano fuori dall'area
-scorrevole, mentre contenuto e compositore scorrono senza sovrapporsi. Il launcher
+Intestazione e chiusura restano fuori dall'area messaggi
+scorrevole; il compositore ha una propria area limitata per non coprire la risposta. Il launcher
 non copre il pannello aperto nei viewport compatti. Il link **Apri configurazione
 della demo {demo}** riporta alla configurazione della tecnologia attiva.
 Cambiare tecnologia mantiene l'isolamento preesistente e apre una nuova UI chiusa,
@@ -297,7 +316,7 @@ riceve una richiesta**:
 | Demo | Agenti modello | Percorso verso i tre servizi |
 |---|---|---|
 | Inline | Solo Router | Istruzioni nel prompt e strumenti → API business HTTP; nessuna skill |
-| Skills | Solo Router | Il router carica `shop-catalog`, `shop-orders`, `shop-returns` → API business HTTP; nessuna delega A2A |
+| Skills | Solo Router | Il router carica `catalog`, `orders`, `returns` dai tre `skill-*` site → API business HTTP; nessuna delega A2A |
 | A2A | Router, Catalog, Orders, Returns | Il router delega ai tre agenti remoti, ciascuno con proprie chiamate modello |
 
 In Skills il router può leggere anche `references/decision-checklist.md` della
@@ -394,7 +413,7 @@ esplicita distinta dalla chiusura:
 npm test -- ChatWidget.test.tsx CatalogView.test.tsx App.test.tsx Components.test.tsx PromptLab.test.tsx ModelGuidance.test.tsx
 ```
 
-Lo smoke test di workspace `scripts\Test-Demos.ps1` verifica con runtime di fixture
-gli agenti effettivi e tutti e tre i destinatari attraverso i sei turni; per
-Skills richiede tutte e tre le skill native, non una semplice presenza generica
-di eventi.
+Gli smoke storici basati su script PowerShell sono stati rimossi: le verifiche
+automatizzate restano nei test xUnit/Vitest. Per Skills, i test richiedono il
+caricamento nativo delle tre skill e distinguono quei caricamenti da una semplice
+presenza generica di eventi.

@@ -1,8 +1,8 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
-import { buildTurnRequest, ObservatoryApi, validateConfiguration, validatePreviewConfiguration } from './api';
-import type { HttpCapture } from './api';
-import { configuration, configurationFor, event, jsonResponse, liveConfigurationFor, product, promptPreview, settings } from '../test/fixtures';
+import { buildTurnRequest, ObservatoryApi, validateConfiguration, validatePreviewConfiguration } from '../../src/lib/api';
+import type { HttpCapture } from '../../src/lib/api';
+import { configuration, configurationFor, event, jsonResponse, liveConfigurationFor, product, promptPreview, settings } from '../support/fixtures';
 
 describe('client API tipizzato', () => {
   it('senza limiti richiede opt-in backend e conserva il consenso esplicito nella richiesta', () => {

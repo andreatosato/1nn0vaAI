@@ -1,7 +1,7 @@
 using System.ClientModel.Primitives;
 using System.Text.Json;
 
-namespace Observatory.Agents;
+namespace Observatory.AgentRuntime;
 
 // Captures billing evidence only; tracing and metrics come from the official SDK instrumentation.
 public sealed class ProviderUsageCapturePolicy : PipelinePolicy
@@ -13,6 +13,12 @@ public sealed class ProviderUsageCapturePolicy : PipelinePolicy
         var scope = new CaptureScope(Current.Value);
         Current.Value = scope;
         return scope;
+    }
+
+    /// <summary>Records provider usage for the current call; used by offline chat clients in tests.</summary>
+    internal static void Record(JsonElement usage)
+    {
+        if (Current.Value is { } scope) scope.Usage = usage.Clone();
     }
 
     public override void Process(PipelineMessage message, IReadOnlyList<PipelinePolicy> pipeline, int currentIndex)

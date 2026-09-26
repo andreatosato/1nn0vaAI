@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Diagnostics;
-using Observatory.Agents;
+using Observatory.AgentRuntime;
 using Observatory.Core;
 
-namespace Observatory.Api;
+namespace Observatory.RouterHost;
 
 public static class ApiErrors
 {

@@ -1,8 +1,7 @@
-using Observatory.AgentHost;
-using Observatory.Agents;
-using Observatory.Returns.Api;
+using Observatory.Agent.Returns;
+using Observatory.SpecialistHost;
 
-var builder = AgentHostApplication.CreateBuilder(args);
-builder.Services.AddSingleton<ISpecialistAgent, ReturnsAgent>();
-var app = AgentHostApplication.Build(builder, AgentNames.Returns, ReturnsEndpoints.MapReturns);
-await app.RunAsync();
+// Returns specialist agent: its own process, model, instructions and tools. Invoked by the A2A router.
+var builder = SpecialistHostApplication.CreateBuilder<ReturnsAgent>(args);
+var app = SpecialistHostApplication.Build(builder);
+app.Run();

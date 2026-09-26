@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { defaultPromptBlocks, runConfigurationSchema } from '../contracts';
-import type { DemoConfiguration, RunConfiguration } from '../contracts';
-import { ObservatoryApi } from '../lib/api';
-import { configuration, configurationFor, jsonResponse, promptPreview, settings } from '../test/fixtures';
-import { ConfigurationPanel, initialSettings } from './ConfigurationPanel';
-import { PromptLab } from './PromptLab';
+import { defaultPromptBlocks, runConfigurationSchema } from '../../src/contracts';
+import type { DemoConfiguration, RunConfiguration } from '../../src/contracts';
+import { ObservatoryApi } from '../../src/lib/api';
+import { configuration, configurationFor, jsonResponse, liveConfigurationFor, promptPreview, settings } from '../support/fixtures';
+import { ConfigurationPanel, initialSettings } from '../../src/components/ConfigurationPanel';
+import { PromptLab } from '../../src/components/PromptLab';
 
 function Harness({ api, server = configuration, initial = settings, disabled = false, withControls = false }: {
   api: ObservatoryApi; server?: DemoConfiguration; initial?: RunConfiguration; disabled?: boolean; withControls?: boolean;
@@ -182,7 +182,7 @@ describe('laboratorio prompt senza inferenza', () => {
     const fetchMock = vi.fn<typeof fetch>().mockImplementationOnce(() => first.promise)
       .mockImplementationOnce(() => second.promise).mockImplementationOnce(() => third.promise);
     vi.stubGlobal('fetch', fetchMock);
-    const { container } = render(<Harness api={new ObservatoryApi('inline')} initial={{ ...settings, promptProfile: 'bad' }} withControls />);
+    const { container } = render(<Harness api={new ObservatoryApi('inline')} server={liveConfigurationFor('inline')} initial={{ ...settings, promptProfile: 'bad' }} withControls />);
     await user.click(screen.getByRole('button', { name: 'Genera anteprima dal server' }));
     await user.selectOptions(screen.getByRole('combobox', { name: 'Profilo modello' }), 'gpt6-astra');
     expect(fetchMock.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);

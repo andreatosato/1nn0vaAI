@@ -49,8 +49,9 @@ confermata restituisce la bozza già esistente (idempotenza), non un rimborso re
 - **Inline:** **un solo agente Router**, con tool HTTP verso i tre servizi business
   Catalog, Orders e Returns. Non sono quattro agenti.
 - **Skills:** ancora **un solo agente Router** e gli stessi tre servizi business;
-  carica skill e risorse pertinenti prima di usare i tool HTTP. Non aggiunge tre
-  agenti modello.
+  carica da `skill-catalog`, `skill-orders` e `skill-returns` le skill
+  `catalog`, `orders` e `returns` e le risorse pertinenti prima di usare i
+  tool HTTP. Non aggiunge tre agenti modello.
 
 La topologia attesa non è prova di una chiamata: usa gli eventi effettivi di tool,
 protocollo e modello nella traccia per verificare cosa è successo.
@@ -118,11 +119,11 @@ sintetiche, non consulenza legale o policy commerciali reali.
 
 Riferimenti autorevoli:
 
-- `src/Observatory.Core/ScenarioCatalog.cs`: 16 scenari DEVELOPMENT, compresi i sei turni e la correzione; set holdout separato, non riprodotto qui.
-- `src/Observatory.Core/Contracts.cs` (`DemoClock`) e `ShopData.cs`: data, ordine, importi, autorizzazioni e policy.
-- `src/Observatory.Agents/ObservatoryAgentRuntime.cs` e `AgentPrompts.cs`: routing, memoria e istruzioni applicative.
-- `tests/Observatory.Tests/DomainTests.cs`: privacy, consenso, policy, conteggi 1 modello/62 pezzi e totale 38.
-- `src/Observatory.AgentHost/OfflineSelfTests.Catalog.cs` e `OfflineSelfTests.Architecture.cs`: conversazioni catalogo e confini reali A2A/HTTP.
+- `src/Shared/Observatory.Core/ScenarioCatalog.cs`: 16 scenari DEVELOPMENT, compresi i sei turni e la correzione; set holdout separato, non riprodotto qui.
+- `src/Shared/Observatory.Core/Contracts.cs` (`DemoClock`) e `ShopData.cs`: data, ordine, importi, autorizzazioni e policy.
+- `src/Shared/Observatory.AgentRuntime/AgentRuntimeServiceCollectionExtensions.cs` e `Prompts/AgentPrompts.cs`: runtime, memoria e istruzioni applicative.
+- `tests/Observatory.Core.Tests/DomainTests.cs`: privacy, consenso, policy, conteggi 1 modello/62 pezzi e totale 38.
+- `tests/Observatory.RouterHost.Tests/TestArchitectures.cs`: confini reali fra Router, servizi HTTP e A2A.
 
 Questa guida non contiene risultati di nuovi run né autorizza modifiche a cloud,
 risorse, runtime, modelli o prezzi.

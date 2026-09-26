@@ -1,0 +1,9 @@
+Ecco quanto risulta per l’ordine ORD-1042:
+
+- Consegna: consegnato il 2026-09-05 (ora non disponibile nei dati).
+- Reso per difetto al primo utilizzo: ammissibile in via preliminare. La policy per articoli difettosi consente il reso entro 60 giorni dalla consegna; alla data commerciale 2026-09-23 sono passati 18 giorni.
+- Importo rimborsabile stimato: fino a 19.99 USD (AmountPaid dell’ordine), al netto di eventuali componenti non rimborsabili previste dalla policy. Non risultano costi di spedizione separati nell’ordine. Questa è una valutazione preliminare; non ho creato alcuna bozza o azione.
+
+Camicia consigliata sotto 40 USD (disponibile):
+- Men Check Shirt — ID 87 — 27.99 USD — disponibile.
+Se preferisci spendere meno, c’è anche Man Short Sleeve Shirt — ID 86 — 19.99 USD — disponibile (stock molto basso).

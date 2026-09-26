@@ -1,8 +1,8 @@
-using Observatory.Api;
-using Observatory.Core;
-using Observatory.Inline.Api;
+using Observatory.Router.Inline;
+using Observatory.RouterHost;
 
-var builder = DemoApiApplication.CreateBuilder(args, DemoTechnologies.Inline);
-builder.Services.AddSingleton<IAgentRuntime, InlineAgent>();
-var app = await DemoApiApplication.BuildAsync(builder);
-await app.RunAsync();
+// Inline router: one agent with a model. Its tools call the Catalog, Orders and Returns business APIs over HTTP;
+// every integration rule is written inline in its instructions.
+var builder = RouterHostApplication.CreateBuilder<InlineRouter>(args, InlineRouter.Architecture);
+var app = await RouterHostApplication.BuildAsync(builder);
+app.Run();

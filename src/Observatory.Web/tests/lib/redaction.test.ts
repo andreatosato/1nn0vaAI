@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { redact, redactText, safeJson } from './redaction';
-import { money, publicThumbnail, tokens } from './format';
+import { redact, redactText, safeJson } from '../../src/lib/redaction';
+import { money, publicThumbnail, tokens } from '../../src/lib/format';
 
 describe('redazione difensiva locale', () => {
   it('nasconde chiavi sensibili anche in corpi wire JSON annidati senza distruggere i conteggi token', () => {

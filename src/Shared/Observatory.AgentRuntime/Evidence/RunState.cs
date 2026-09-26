@@ -1,9 +1,9 @@
 using System.Text.Json;
 using Observatory.Core;
 
-namespace Observatory.Agents;
+namespace Observatory.AgentRuntime;
 
-internal sealed class RunState(AgentRunRequest request, Func<RunEvent, Task> emit)
+public sealed class RunState(AgentRunRequest request, Func<RunEvent, Task> emit)
 {
     private readonly SemaphoreSlim _eventGate = new(1, 1);
     private readonly object _sync = new();
@@ -136,5 +136,5 @@ public static class AgentJson
     public static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web) { WriteIndented = false };
 }
 
+/// <summary>Per-run request forwarded to an A2A specialist in the standard message metadata extension.</summary>
 public sealed record RemoteInvocation(string InvocationId, AgentRunRequest Request);
-public sealed record RemoteTelemetryBatch(string RunId, string InvocationId, bool Completed, IReadOnlyList<RunEvent> Events);

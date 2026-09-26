@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { defaultPromptBlocks, demoConfigurationSchema, runConfigurationSchema, runRecordSchema } from './contracts';
-import { configuration, run, settings } from './test/fixtures';
+import { defaultPromptBlocks, demoConfigurationSchema, runConfigurationSchema, runRecordSchema } from '../src/contracts';
+import { configuration, run, settings } from './support/fixtures';
 
 describe('compatibilità dei blocchi prompt', () => {
   it('legge run storici senza promptBlocks come tutti spenti senza alterare il profilo', () => {

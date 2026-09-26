@@ -1,8 +1,8 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { comparisonScenarios, configuration, liveConfigurationFor } from '../test/fixtures';
-import { ComparisonView } from './ComparisonView';
+import { comparisonScenarios, configuration, liveConfigurationFor } from '../support/fixtures';
+import { ComparisonView } from '../../src/components/ComparisonView';
 
 function props() {
   return { server: liveConfigurationFor('inline'),

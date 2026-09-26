@@ -4,9 +4,9 @@ import { useState } from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import type { Technology } from '../contracts';
-import { demoMetadata } from '../metadata';
-import { ChatWidget } from './ChatWidget';
+import type { Technology } from '../../src/contracts';
+import { demoMetadata } from '../../src/metadata';
+import { ChatWidget } from '../../src/components/ChatWidget';
 
 function Content({ disabled = false }: { disabled?: boolean }) {
   const [draft, setDraft] = useState('');

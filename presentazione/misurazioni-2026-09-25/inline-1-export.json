@@ -5244,7 +5244,7 @@
     "reasoning": "Subset of output: never added to output a second time.",
     "cacheWrite": "Configured replacement cache-write rates use a disjoint input bucket; legacy explicitly configured surcharges remain additive. Tiered pricing requires provider-reported cache-write usage.",
     "contextTier": "Input tokens alone select the request-wide tier; long rates apply only above the configured threshold. Reasoning remains a subset of output.",
-    "incomplete": "Missing usage or rates stays null/partial/unpriced; MOCK usage and cost are null.",
+    "incomplete": "Missing usage or rates stays null/partial/unpriced.",
     "traceWarning": "Timeline model.completed data references the same calls; do not sum it with the ledger."
   },
   "replay": {

@@ -2,22 +2,35 @@ using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Observatory.Core;
+using Observatory.ServiceDefaults;
 
-namespace Observatory.Agents;
+namespace Observatory.AgentRuntime;
 
-public sealed class AgentSession(
+/// <summary>What makes one agent different from another: its role, its instructions and its tools.</summary>
+public sealed record AgentDefinition(
+    string Role,
+    Func<AgentRunRequest, string> Instructions,
+    Func<RunState, IList<AITool>> Tools)
+{
+    /// <summary>Optional context provider for one run, for example the native Agent Skills provider.</summary>
+    public Func<RunState, AIContextProvider>? Context { get; init; }
+
+    /// <summary>The root router publishes its final answer to the chat timeline.</summary>
+    public bool PublishesAnswer { get; init; }
+}
+
+/// <summary>
+/// Runs one Microsoft Agent Framework ChatClientAgent for one run: model pipeline, tool invocation with evidence,
+/// run limits and native OpenTelemetry. Agents describe themselves with an <see cref="AgentDefinition"/>.
+/// </summary>
+public sealed class AgentRunner(
     AgentModelRegistry registry,
-    ModelProviderFactory providers,
+    ModelClientFactory models,
     ILoggerFactory loggerFactory,
     IServiceProvider services)
 {
-    public const string ActivitySourceName = "Observatory.Agents";
-
-    public async Task<AgentExecutionResult> RunAsync(
-        string role, AgentRunRequest request, IEnumerable<ChatMessage> messages,
-        Func<RunState, IList<AITool>> tools, Func<RunEvent, Task> emit,
-        CancellationToken cancellationToken,
-        Func<AIContextProvider>? contextProvider = null)
+    public async Task<AgentExecutionResult> RunAsync(AgentDefinition agent, AgentRunRequest request,
+        IEnumerable<ChatMessage> messages, Func<RunEvent, Task> emit, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(emit);
         registry.Validate(request);
@@ -25,10 +38,12 @@ public sealed class AgentSession(
         cancellationToken.ThrowIfCancellationRequested();
         var state = new RunState(request, emit);
         using var scope = new AgentResources();
-        var agent = CreateAgent(role, tools(state), state, scope, contextProvider);
-        var response = await agent.RunAsync(messages, cancellationToken: cancellationToken).ConfigureAwait(false);
+        var runnable = CreateAgent(agent, state, scope);
+        var response = await runnable.RunAsync(messages, cancellationToken: cancellationToken).ConfigureAwait(false);
         state.ThrowIfFaulted();
         var result = state.Result(response.Text);
+        if (agent.PublishesAnswer)
+            await state.EmitAsync("answer.delta", agent.Role, result.Answer, new { text = result.Answer, buffered = true }).ConfigureAwait(false);
         return result;
     }
 
@@ -42,10 +57,11 @@ public sealed class AgentSession(
         }).ToArray()
     };
 
-    private AIAgent CreateAgent(string role, IList<AITool> tools, RunState state, AgentResources resources,
-        Func<AIContextProvider>? contextProvider)
+    private AIAgent CreateAgent(AgentDefinition agent, RunState state, AgentResources resources)
     {
-        var client = new FunctionInvokingChatClient(providers.Create(state, role), loggerFactory, services)
+        var role = agent.Role;
+        var tools = agent.Tools(state);
+        var client = new FunctionInvokingChatClient(models.Create(state, role), loggerFactory, services)
         {
             AllowConcurrentInvocation = false,
             MaximumIterationsPerRequest = state.Request.Configuration.UnboundedExecution ? int.MaxValue : state.Request.Configuration.MaxModelCalls,
@@ -95,15 +111,15 @@ public sealed class AgentSession(
             Description = $"Agente {role} del negozio sintetico; AIAgent di Microsoft Agent Framework.",
             ChatOptions = new ChatOptions
             {
-                Instructions = AgentPrompts.Instructions(role, state.Request),
+                Instructions = agent.Instructions(state.Request),
                 Tools = tools,
                 MaxOutputTokens = state.Request.Configuration.UnboundedExecution ? null : state.Request.Configuration.MaxOutputTokens,
                 AllowMultipleToolCalls = false
             }
         };
-        if (contextProvider is not null)
+        if (agent.Context is not null)
         {
-            var provider = contextProvider();
+            var provider = agent.Context(state);
             if (provider is IDisposable disposable) resources.Add(disposable);
             options.AIContextProviders = [provider];
         }
@@ -138,7 +154,7 @@ public sealed class AgentSession(
                     }).ConfigureAwait(false);
                 }
             }, null)
-            .UseOpenTelemetry(ActivitySourceName, telemetry => telemetry.EnableSensitiveData = false)
+            .UseObservatoryTelemetry()
             .Build();
     }
 

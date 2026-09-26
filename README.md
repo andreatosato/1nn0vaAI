@@ -13,22 +13,44 @@ La proposta e la scaletta dello speaker per una sessione di 60 minuti sono in
 
 ## Cosa esegue
 
-Un Aspire AppHost avvia React/Vite, tre istanze della stessa API .NET e tre
-servizi: **Catalog**, **Orders** e **Returns**. I servizi sono tre istanze
-dello stesso eseguibile `Observatory.AgentHost`, selezionate con `Agents:Role`;
-non tre copie di progetto. Tutte le demo dipendono da tutti e tre i servizi.
+Un Aspire AppHost avvia React/Vite e **dodici processi .NET separati**. Ogni
+agente ha la propria API, il proprio modello, il proprio prompt e i propri
+tool, come in una vera architettura agentica. Il codice e diviso per ruolo:
 
-| Demo | Agenti AI | Accesso al dominio | Istruzioni |
+| Cartella | Progetti | Ruolo | Modello |
 | --- | --- | --- | --- |
-| Inline | Solo router | Tool del router -> HTTP business dei tre servizi | Procedure nel prompt del router |
-| Skills | Solo router | Gli stessi tool HTTP, senza delega ad altri agenti | Tre Agent Skills native caricate on demand |
-| A2A | Router e specialisti remoti | Delega A2A via HTTP al servizio del ruolo | Prompt inline di ogni agente; niente provider di skill native |
+| [src/Shop](src/Shop) | `Observatory.Shop.Catalog`, `.Orders`, `.Returns` | API di business, sistema di record | No |
+| [src/Agents](src/Agents) | `Observatory.Agent.Catalog`, `.Orders`, `.Returns` | Agenti specialisti A2A: ognuno ha modello, procedura e tool HTTP nella propria cartella `Tools` | Si |
+| [src/Skills](src/Skills) | `Observatory.Skill.Catalog`, `.Orders`, `.Returns` | Skill site HTTP: pubblicano gli specialisti come Agent Skills | No |
+| [src/Routers](src/Routers) | `Observatory.Router.Inline`, `.Skills`, `.A2A` | Un router per demo; la UI parla solo con i router | Si |
+| [src/Shared](src/Shared) | `Core`, `ServiceDefaults`, `AgentRuntime`, `RouterHost`, `SpecialistHost` | Infrastruttura comune che la demo non deve mostrare | - |
+
+| Demo | Agenti con modello | Accesso al dominio | Istruzioni |
+| --- | --- | --- | --- |
+| Inline | `router-inline` | Tool HTTP verso `shop-catalog`, `shop-orders`, `shop-returns` | Tutte nel prompt del router |
+| Skills | `router-skills` | Tool HTTP verso `shop-catalog`, `shop-orders`, `shop-returns` | Tre Agent Skills native (`catalog`, `orders`, `returns`) caricate via HTTP da `skill-*` |
+| A2A | `router-a2a` e i tre `agent-*` | Delega A2A agli agenti; ogni agente usa i tool HTTP della propria API | Prompt di ogni agente |
+
+Un agente e **istruzioni + tool** (interfaccia `IAgent`): lo si legge tutto in
+un file, per esempio [CatalogAgent.cs](src/Agents/Observatory.Agent.Catalog/CatalogAgent.cs)
+o [InlineRouter.cs](src/Routers/Observatory.Router.Inline/InlineRouter.cs).
+Modello, cattura delle evidenze, limiti e telemetria sono condivisi in
+[AgentRuntime](src/Shared/Observatory.AgentRuntime). I tool HTTP sono gli stessi
+in tutte le architetture (nome, descrizione e schema identici): cambia solo
+quale agente li usa. Il testo condiviso e duplicato di proposito, per esempio
+la procedura del catalogo in Inline e nell'agente Catalog, invece di aggiungere
+switch di configurazione.
+
 
 Le skill non sono agenti ne un protocollo di trasporto. Il provider del router
-Skills legge **copie bundled fidate** degli stessi pacchetti Markdown esposti
-dai servizi, versionate con il codice: nessun download dinamico o script.
-I pacchetti sono `shop-catalog`, `shop-orders`, `shop-returns`; non c'e una
-skill `shop-router`. `AgentCard.Skills` di A2A descrive invece capacita del
+Skills legge l'indice dei tre **skill site** fidati (`skill-catalog`,
+`skill-orders`, `skill-returns`) con la service discovery di Aspire e scarica
+`SKILL.md` solo quando il modello invoca `load_skill`. I nomi delle skill sono
+`catalog`, `orders`, `returns`; non esistono skill `shop-*` o `shop-router`.
+I contenuti `SKILL.md` sono la procedura dello specialista corrispondente,
+pubblicata verbatim. Le risorse sono solo Markdown dichiarato nell'indice
+(per Returns: `references/decision-checklist.md`); nessuno script viene
+scoperto o eseguito. `AgentCard.Skills` di A2A descrive invece capacita del
 protocollo, non questi documenti o il loro caricamento.
 
 `GET /api/config` espone `capabilities.agentNames`: `["router"]` per
@@ -45,7 +67,6 @@ consenso dell'utente. Lo startup non invia richieste ai modelli.
 - .NET SDK 10.0.401, oppure patch successiva dello stesso feature band.
 - Node.js 24 LTS e npm.
 - Aspire CLI / integrazione Aspire in VS Code per la dashboard e il ciclo di avvio.
-- Docker Desktop **solo** per la modalita container.
 
 Il progetto AppHost usa Aspire SDK e integrazione JavaScript 13.4.6.
 La CLI puo essere piu recente. Le versioni dei package sono nei progetti;
@@ -73,21 +94,20 @@ porta fissa per frontend o API.
 Il profilo `http` abilita esplicitamente il trasporto non TLS per lo sviluppo
 locale. Il profilo `https` resta disponibile con certificati di sviluppo validi.
 
-Risorse:
+Risorse nella dashboard:
 
 - `web`: frontend React.
-- `demo-inline`: prima demo.
-- `demo-skills`: seconda demo.
-- `demo-a2a`: terza demo.
-- `catalog-service`: API Catalog, relativo pacchetto skill e agente A2A Catalog.
-- `orders-service`: API Orders, relativo pacchetto skill e agente A2A Orders.
-- `returns-service`: API Returns, relativo pacchetto skill e agente A2A Returns.
+- `shop-catalog`, `shop-orders`, `shop-returns`: API di business.
+- `agent-catalog`, `agent-orders`, `agent-returns`: agenti specialisti A2A.
+- `skill-catalog`, `skill-orders`, `skill-returns`: skill site senza modello.
+- `router-inline`, `router-skills`, `router-a2a`: le tre demo.
 
-Aspire configura su ciascuna API le origini `Agents:Endpoints:catalog`,
-`Agents:Endpoints:orders`, `Agents:Endpoints:returns` e attende la salute di
-tutti i servizi. Il precedente `Agents:BaseUrl` non e piu il contratto.
-Fuori da Aspire, i profili `catalog`, `orders`, `returns` di AgentHost usano
-rispettivamente le porte 5205, 5206, 5207; con Aspire anche queste sono dinamiche.
+I componenti si trovano per nome logico con la **service discovery di Aspire**
+(`http://shop-orders`, `http://agent-orders`): nessun URL, ruolo o tecnologia
+da configurare. Fuori da Aspire ogni progetto ha una porta fissa nel proprio
+`launchSettings.json`: API 5301-5303, agenti 5311-5313, router 5321-5323,
+skill site 5331-5333.
+
 
 La UI usa richieste relative. Il proxy riceve gli indirizzi da Aspire:
 `INLINE_API_URL`, `SKILLS_API_URL`, `A2A_API_URL`.
@@ -99,16 +119,16 @@ che ha avviato l'AppHost. Non terminare indiscriminatamente tutti i processi .NE
 ### Dati di base pronti allo startup
 
 Non serve lanciare uno script PowerShell o un progetto di caricamento separato.
-I tre servizi inizializzano le fixture di `ShopData` prima di accettare
-richieste: catalogo, ordini sintetici e policy. Le API non registrano un
+Le tre API di business inizializzano le fixture di `ShopData` prima di accettare
+richieste: catalogo, ordini sintetici e policy. I router non registrano un
 `IShopData` locale: prima di ascoltare chiamano **`GET /catalog` del servizio
 Catalog**, caricando snapshot, URL immagine e provenance per metadata/UI.
 Un errore non viene mascherato da un catalogo locale alternativo.
 Le definizioni degli scenari rimangono locali alla libreria Core.
 
 Al primo avvio lo snapshot incluso nel progetto viene validato e copiato in
-`.appdata\catalog\products.snapshot.json`. Aspire passa lo stesso percorso a
-tutti e tre i servizi (nei container: `/state/catalog`). La copia e atomica anche
+`.appdata\catalog\products.snapshot.json`. Aspire passa lo stesso percorso alle
+tre API di business. La copia e atomica anche
 con avvii concorrenti; se lo snapshot esiste viene validato e riutilizzato,
 senza sovrascriverlo, modificarne hash/data di acquisizione o cancellare bozze.
 Uno snapshot non valido interrompe lo startup con un errore esplicito.
@@ -122,8 +142,7 @@ e l'hash del catalogo.
 
 Catalogo e fixture frozen sono condivisi tramite Core e lo stesso snapshot:
 **non ci sono tre database di negozio indipendenti**. Solo Orders scrive le
-bozze sintetiche nello stato persistente condiviso `.appdata\domain`
-(`/state/domain` nei container). Le tre API hanno invece file SQLite separati
+bozze sintetiche nello stato persistente condiviso `.appdata\domain`. I tre router hanno invece file SQLite separati
 per conversazioni, run ed evidenze, non per i dati del negozio.
 
 ### Contratti dei servizi
@@ -139,62 +158,19 @@ I percorsi sono relativi all'origine del servizio, non a `/api`.
 | Orders | `GET /orders/{orderId}`; `POST /return-drafts` con body `{orderId,reason}` |
 | Returns | `GET /policies`; `POST /return-assessments` con body `{orderId,reason}` |
 
-Ciascuna istanza espone soltanto il proprio `/a2a/{role}`, la relativa
-`/a2a/{role}/.well-known/agent-card.json` e
-`/skills/shop-{role}/SKILL.md`. Returns espone anche
-`/skills/shop-returns/references/decision-checklist.md`.
+Le API di business espongono soltanto le proprie rotte: non servono skill.
+I tre skill site espongono `GET /skills`, `GET /skills/{name}/SKILL.md`
+e, per Returns, `GET /skills/returns/references/decision-checklist.md`.
+Ogni agente specialista espone `/a2a/{ruolo}`, la relativa
+`/a2a/{ruolo}/.well-known/agent-card.json` e `POST /prompts/preview` con le
+proprie istruzioni: il router A2A compone l'anteprima chiedendola agli agenti.
 
 Il backend imposta `X-Observatory-Customer-Id` dall'identita cliente fidata e
 `X-Observatory-Confirm-Action=true` solo con consenso esplicito validato.
 Non sono argomenti del modello ne header che la UI inoltra ai servizi.
-La conferma nel testo della chat non autorizza una bozza. In accesso remoto,
-`X-Observatory-A2A-Key` protegge tutti gli endpoint backend non-health,
-inclusi API business e file skill, non soltanto A2A.
+La conferma nel testo della chat non autorizza una bozza. I servizi accettano
+solo host locali (`AllowedHosts`) e non sono pensati per l'esposizione in rete.
 
-## Esecuzione in container, sempre da Aspire
-
-Avvia prima il motore Docker, poi:
-
-```powershell
-dotnet run --project .\src\Observatory.AppHost --launch-profile http -- --UseContainers=true
-```
-
-I backend usano il supporto container nativo del .NET SDK: nessun Dockerfile
-.NET e nessuna cartella `containers`. L'AppHost esegue `dotnet publish` con
-`/t:PublishContainer`, `--os linux` e `--no-self-contained` nei due job
-`publish-agent-image` e `publish-api-image`, visibili nella dashboard.
-Le pubblicazioni sono sequenziali per non scrivere contemporaneamente gli
-output dei progetti condivisi. I container partono solo dopo una pubblicazione
-riuscita; un errore di build non riutilizza silenziosamente un'immagine vecchia.
-
-Le immagini locali sono `ai-observatory-agent-host:dev` e
-`ai-observatory-api:dev`; i tre ruoli riusano l'unica immagine AgentHost
-e le tre demo riusano la stessa immagine API.
-Repository, tag, utente e porta sono configurati nei progetti
-[AgentHost](src/Observatory.AgentHost/Observatory.AgentHost.csproj) e
-[API](src/Observatory.Api/Observatory.Api.csproj). Non viene eseguito alcun push
-a un registry remoto. I file `appsettings.Local.json` sono esclusi dalla
-pubblicazione: il .NET SDK non usa le esclusioni di `.dockerignore`.
-Per React/Nginx rimane soltanto il
-[Dockerfile del frontend](src/Observatory.Web/Dockerfile).
-Aspire resta l'unico orchestratore sia per i processi sia per i container.
-
-I backend ascoltano internamente sulla porta 8080; Aspire assegna i collegamenti
-esterni e configura gli indirizzi fra i container. Lo stato e montato sotto
-`/state` dai dati locali in `.appdata`: catalogo e dominio ai servizi, solo
-la directory SQLite della propria demo a ogni API. I file rimangono
-`.appdata\inline\observatory.sqlite`, `.appdata\skills\observatory.sqlite` e
-`.appdata\a2a\observatory.sqlite`.
-L'AppHost genera un segreto di trasporto effimero per ogni avvio in container
-e lo passa soltanto ai backend insieme a `Agents:AllowRemote=true`.
-Tutte le superfici dei servizi richiedono la chiave, salvo `GET /health` e
-`GET /alive`; nella modalita a processi l'accesso resta limitato al loopback.
-Nessun segreto di trasporto viene passato a `web` o al browser.
-Su host Linux verifica che il percorso montato sia scrivibile dall'utente
-non-root `app` dell'immagine .NET.
-
-Il .NET SDK crea le immagini senza Dockerfile; Docker Desktop serve per
-eseguirle. La modalita container va verificata con il motore effettivamente attivo.
 
 ## Catalogo pubblico e immagini
 
@@ -535,7 +511,7 @@ Il ledger supporta le due fasce Sol: input/cache letta/cache scritta/output
 **2 / 0.2 / 2.5 / 10 USD per milione** fino a 272000 token input inclusi,
 **4 / 0.4 / 5 / 15** oltre tale soglia. La cache scritta sostituisce la
 tariffa input ordinaria per quei token; conteggi mancanti non diventano zero.
-Fonti e dettagli di verifica sono nel [README API](src/Observatory.Api/README.md).
+Fonti e dettagli di verifica sono nel [README del RouterHost](src/Shared/Observatory.RouterHost/README.md).
 
 Un deployment configurato non implica disponibilita LIVE: la UI legge
 `capabilities.modelCapabilities[].liveReady` dal backend anche per gli override.
@@ -548,13 +524,25 @@ Lo startup Aspire non crea risorse Azure ne distribuisce modelli.
 
 ## Telemetria e limiti delle misure
 
-Usare la dashboard Aspire per i trace e la UI per conversazioni, deleghe,
-richieste ai modelli e ledger per-call. Il tipo di cattura distingue:
+L'osservabilita e quella di **Aspire**:
+[ServiceDefaults](src/Shared/Observatory.ServiceDefaults/Extensions.cs) configura
+OpenTelemetry (log, trace, metriche, ASP.NET Core, HttpClient) e registra le
+sorgenti native di Microsoft.Extensions.AI e Agent Framework, con le
+convenzioni GenAI (modello, token, durata, tool). Il trace e distribuito: in
+A2A una sola traccia attraversa `router-a2a` -> `agent-*` -> `shop-*`.
 
-- messaggi logici del client AI;
-- messaggi del protocollo A2A, separati dalle chiamate HTTP business;
-- body HTTP effettivo verso Azure, quando la cattura e disponibile;
-- richieste del provider Azure OpenAI, quando la cattura e disponibile.
+ServiceDefaults aggiunge un solo comportamento,
+[AiTelemetryExtensions](src/Shared/Observatory.ServiceDefaults/AiTelemetryExtensions.cs):
+sul span nativo della chiamata al modello scrive `observatory.cost.usd`,
+`observatory.agent` e `gen_ai.usage.cache_read.input_tokens`, e incrementa la
+metrica `observatory.ai.cost` (USD) per agente e profilo.
+
+La UI conserva il ledger per chiamata (token, cache, costo, richiesta logica)
+perche serve a confrontare ed esportare le misure: e un dato dell'applicazione,
+non un secondo backend di tracing. In A2A lo specialista restituisce le proprie
+evidenze nei metadata della risposta A2A; il modello del router riceve solo il
+testo della risposta.
+
 
 Non confondere il primo evento di avanzamento con il primo token della risposta.
 Non sommare padre/figli del trace come se fossero chiamate fatturabili distinte.
@@ -614,70 +602,33 @@ generalizzare una singola osservazione come confronto tra modelli.
 
 ## Test
 
-Questi sono comandi e criteri di verifica per la nuova architettura, non un
-resoconto di test gia superati. Ricostruire i progetti prima dei self-test per
-non eseguire output della precedente architettura a host singolo.
+Tutti i test sono in [tests](tests) (xUnit) e in
+[src/Observatory.Web/tests](src/Observatory.Web/tests) (Vitest): `src` contiene
+solo codice applicativo. Nessun test chiama un modello o un servizio esterno.
+
+| Progetto | Cosa verifica |
+| --- | --- |
+| `Observatory.Core.Tests` | Dominio, catalogo, pricing |
+| `Observatory.Shop.Tests` | Le tre API di business in memoria: rotte, errori, header fidati |
+| `Observatory.Skills.Tests` | Contratti dei tre skill site e allineamento `SKILL.md` con le procedure degli agenti |
+| `Observatory.Agents.Tests` | Istruzioni e tool identici a quelli inviati nelle misure LIVE (golden), round-trip A2A con evidenze, limiti ed esecuzione senza limiti, usage del provider |
+| `Observatory.RouterHost.Tests` | Host dei router: architettura dichiarata, anteprima prompt, accounting senza limiti |
+| `Observatory.Telemetry.Tests` | Span e metriche native, costo sul span |
 
 ```powershell
-dotnet test .\tests\Observatory.Tests\Observatory.Tests.csproj
+dotnet test .\AiObservatory.slnx
 npm --prefix .\src\Observatory.Web test
 npm --prefix .\src\Observatory.Web run build
 ```
 
-Con Aspire in esecuzione, prendi dalla dashboard i tre URL API:
+I golden file in [tests/Observatory.Agents.Tests/Golden](tests/Observatory.Agents.Tests/Golden)
+sono estratti dalle richieste reali delle misure LIVE: se un refactoring cambia
+anche un carattere di prompt o tool, il test fallisce.
 
-```powershell
-.\scripts\Test-Demos.ps1 `
-  -InlineUrl http://localhost:PORTA_INLINE `
-  -SkillsUrl http://localhost:PORTA_SKILLS `
-  -A2AUrl http://localhost:PORTA_A2A
-```
+Due harness storici in `Observatory.RouterHost.Tests` sono marcati `Skip`:
+precedono l'esecuzione solo LIVE e si aspettano run con usage non verificata
+completati come "unpriced", mentre il runtime oggi si ferma (fail-closed).
+Vanno riscritti con usage del provider prezzata.
 
-Questo script e un test esplicito e opzionale, non il caricamento dei dati
-di base e non viene lanciato allo startup. La verifica dei sei turni deve
-distinguere il solo router di Inline/Skills dagli agenti effettivamente
-invocati in A2A, controllare il confine immagini/tool e non invocare provider
-reali durante i test che usano runtime di fixture. Non richiedere quattro
-agenti in Inline o Skills.
-Anche `Test-Demos.ps1` resta uno strumento manuale attivo: verifica una
-sequenza completa di sei turni per tutte e tre le architetture. Il comando
-`Observatory.Runner smoke` controlla invece un singolo endpoint e non
-sostituisce quelle asserzioni.
-I due file sotto `scripts` non fanno parte del bootstrap .NET e non sono
-duplicati inutilizzati: uno aggiorna su richiesta il catalogo pubblico,
-l'altro esercita il percorso comparativo workspace.
-
-Per i controlli HTTP aggiuntivi e gli esperimenti consultare
-[Observatory.Runner](src/Observatory.Runner/README.md). Per i test offline che
-esercitano provider Skills e protocollo A2A reali:
-
-```powershell
-dotnet run --project .\src\Observatory.AgentHost -- --self-test
-```
-
-### Criteri da verificare
-
-- Avvio a processi e container con i tre servizi distinti e tutte le API
-  pronte solo dopo il caricamento metadata da Catalog.
-- Inizializzazione offline idempotente: snapshot e bozze conservati al
-  riavvio, nessuna conversazione o run creata automaticamente.
-- Inline/Skills senza chiamate ad agenti specialisti; tool HTTP business
-  reali, e caricamento nativo delle tre skill soltanto nella variante Skills.
-- A2A sul servizio corretto: card, agente e tool del solo ruolo configurato,
-  telemetria separata dal risultato di dominio e nessuna skill nativa.
-- Autenticazione di business API, skill, discovery, A2A e telemetria nei
-  container; nessun segreto o header di identita/consenso nel contesto AI.
-- Ledger delle chiamate effettive, immagini solo UI, SSE, replay senza
-  riesecuzione, export, persistenza e trace correlati nella dashboard.
-- Conteggi del catalogo prima di `take`, distinzione modelli/pezzi, filtri
-  italiani combinati, zero corrispondenze, follow-up e provenienza dei colori.
-- Cambio di modello/prompt al turno successivo, run precedenti immutabili,
-  nessuna conversazione o run creata dai soli Settings/anteprima.
-
-Non si riportano conteggi o successi delle suite precedenti come evidenza
-della nuova architettura. Le verifiche offline non attestano inferenza Azure,
-benchmark o qualita dei modelli.
-
-La presentazione definitiva e i confronti qualitativi/economici richiedono
-una successiva campagna LIVE autorizzata. La scaletta da 60 minuti e i requisiti
-degli esperimenti rimangono nella specifica completa.
+Le misure LIVE, a pagamento e sempre esplicite, si ripetono con
+[misura-architetture.ps1](presentazione/misura-architetture.ps1).

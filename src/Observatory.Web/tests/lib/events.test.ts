@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { answerFromEvents, callsFromEvents, loadedServiceSkill, mergeEvents, parseRunEvent, protocolDetails, runEventsUrl } from './events';
-import { event, modelCall } from '../test/fixtures';
+import { answerFromEvents, callsFromEvents, loadedServiceSkill, mergeEvents, parseRunEvent, protocolDetails, runEventsUrl } from '../../src/lib/events';
+import { event, modelCall } from '../support/fixtures';
 
 describe('eventi SSE registrati', () => {
   it('deduplica ID e sequenze e ordina senza duplicare answer.delta', () => {

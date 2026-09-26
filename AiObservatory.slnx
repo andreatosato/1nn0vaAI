@@ -1,14 +1,43 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/Observatory.AgentHost/Observatory.AgentHost.csproj" />
-    <Project Path="src/Observatory.Agents/Observatory.Agents.csproj" />
-    <Project Path="src/Observatory.Api/Observatory.Api.csproj" />
     <Project Path="src/Observatory.AppHost/Observatory.AppHost.csproj" />
-    <Project Path="src/Observatory.Core/Observatory.Core.csproj" />
-    <Project Path="src/Observatory.Runner/Observatory.Runner.csproj" />
-    <Project Path="src/Observatory.ServiceDefaults/Observatory.ServiceDefaults.csproj" />
+  </Folder>
+  <Folder Name="/src/Shop/">
+    <Project Path="src/Shop/Observatory.Shop.Catalog/Observatory.Shop.Catalog.csproj" />
+    <Project Path="src/Shop/Observatory.Shop.Orders/Observatory.Shop.Orders.csproj" />
+    <Project Path="src/Shop/Observatory.Shop.Returns/Observatory.Shop.Returns.csproj" />
+  </Folder>
+  <Folder Name="/src/Agents/">
+    <Project Path="src/Agents/Observatory.Agent.Catalog/Observatory.Agent.Catalog.csproj" />
+    <Project Path="src/Agents/Observatory.Agent.Orders/Observatory.Agent.Orders.csproj" />
+    <Project Path="src/Agents/Observatory.Agent.Returns/Observatory.Agent.Returns.csproj" />
+  </Folder>
+  <Folder Name="/src/Skills/">
+    <Project Path="src/Skills/Observatory.Skill.Catalog/Observatory.Skill.Catalog.csproj" />
+    <Project Path="src/Skills/Observatory.Skill.Orders/Observatory.Skill.Orders.csproj" />
+    <Project Path="src/Skills/Observatory.Skill.Returns/Observatory.Skill.Returns.csproj" />
+  </Folder>
+  <Folder Name="/src/Inline/">
+    <Project Path="src/Inline/Observatory.Inline/Observatory.Inline.csproj" />
+  </Folder>
+  <Folder Name="/src/Routers/">
+    <Project Path="src/Routers/Observatory.Router.Inline/Observatory.Router.Inline.csproj" />
+    <Project Path="src/Routers/Observatory.Router.Skills/Observatory.Router.Skills.csproj" />
+    <Project Path="src/Routers/Observatory.Router.A2A/Observatory.Router.A2A.csproj" />
+  </Folder>
+  <Folder Name="/src/Shared/">
+    <Project Path="src/Shared/Observatory.Core/Observatory.Core.csproj" />
+    <Project Path="src/Shared/Observatory.ServiceDefaults/Observatory.ServiceDefaults.csproj" />
+    <Project Path="src/Shared/Observatory.AgentRuntime/Observatory.AgentRuntime.csproj" />
+    <Project Path="src/Shared/Observatory.SpecialistHost/Observatory.SpecialistHost.csproj" />
+    <Project Path="src/Shared/Observatory.RouterHost/Observatory.RouterHost.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/Observatory.Tests/Observatory.Tests.csproj" />
+    <Project Path="tests/Observatory.Core.Tests/Observatory.Core.Tests.csproj" />
+    <Project Path="tests/Observatory.Shop.Tests/Observatory.Shop.Tests.csproj" />
+    <Project Path="tests/Observatory.Agents.Tests/Observatory.Agents.Tests.csproj" />
+    <Project Path="tests/Observatory.Skills.Tests/Observatory.Skills.Tests.csproj" />
+    <Project Path="tests/Observatory.RouterHost.Tests/Observatory.RouterHost.Tests.csproj" />
+    <Project Path="tests/Observatory.Telemetry.Tests/Observatory.Telemetry.Tests.csproj" />
   </Folder>
 </Solution>

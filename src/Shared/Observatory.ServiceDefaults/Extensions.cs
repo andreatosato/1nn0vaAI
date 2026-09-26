@@ -46,7 +46,8 @@ public static class Extensions
                 metrics.AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
                     .AddRuntimeInstrumentation()
-                    .AddMeter(AiTelemetryExtensions.ChatSourceName, AiTelemetryExtensions.AgentSourceName);
+                    .AddMeter(AiTelemetryExtensions.ChatSourceName, AiTelemetryExtensions.AgentSourceName,
+                        AiTelemetryExtensions.CostMeterName);
             })
             .WithTracing(tracing =>
             {

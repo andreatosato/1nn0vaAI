@@ -1,256 +1,159 @@
 # Architettura delle tre demo
 
-Tre percorsi distinti: **Inline**, **Agent Skills** e **A2A**. Tutti usano
-Catalog, Orders e Returns come servizi separati. Sono tre istanze dello
-stesso progetto `Observatory.AgentHost`, configurate con
-`Agents:Role=catalog|orders|returns`, non tre copie di codice.
+Tre percorsi distinti per lo stesso assistente del negozio: **Inline**,
+**Agent Skills** e **A2A**. Ogni componente e un processo .NET separato,
+avviato e collegato da Aspire. Ogni agente ha la propria API, il proprio
+modello, il proprio prompt e i propri tool.
 
 Gli schemi mostrano dipendenze e percorsi possibili, non una run gia eseguita:
 il router usa solo i tool o gli specialisti necessari alla richiesta.
+
+## I dodici processi
+
+| Risorsa Aspire | Progetto | Modello | Chiama |
+| --- | --- | --- | --- |
+| `shop-catalog` | [Observatory.Shop.Catalog](src/Shop/Observatory.Shop.Catalog) | No | - |
+| `shop-orders` | [Observatory.Shop.Orders](src/Shop/Observatory.Shop.Orders) | No | - |
+| `shop-returns` | [Observatory.Shop.Returns](src/Shop/Observatory.Shop.Returns) | No | - |
+| `agent-catalog` | [Observatory.Agent.Catalog](src/Agents/Observatory.Agent.Catalog) | Si | `shop-catalog` |
+| `agent-orders` | [Observatory.Agent.Orders](src/Agents/Observatory.Agent.Orders) | Si | `shop-orders`, `shop-returns` |
+| `agent-returns` | [Observatory.Agent.Returns](src/Agents/Observatory.Agent.Returns) | Si | `shop-returns` |
+| `skill-catalog` | [Observatory.Skill.Catalog](src/Skills/Observatory.Skill.Catalog) | No | - |
+| `skill-orders` | [Observatory.Skill.Orders](src/Skills/Observatory.Skill.Orders) | No | - |
+| `skill-returns` | [Observatory.Skill.Returns](src/Skills/Observatory.Skill.Returns) | No | - |
+| `router-inline` | [Observatory.Router.Inline](src/Routers/Observatory.Router.Inline) | Si | le tre `shop-*` |
+| `router-skills` | [Observatory.Router.Skills](src/Routers/Observatory.Router.Skills) | Si | le tre `skill-*` e le tre `shop-*` |
+| `router-a2a` | [Observatory.Router.A2A](src/Routers/Observatory.Router.A2A) | Si | i tre `agent-*` (e `shop-*` solo per i dati della UI) |
+
+I nomi sono anche gli indirizzi: i client usano `http://shop-orders` o
+`http://agent-orders` e la **service discovery di Aspire** li risolve.
+Nessun URL, ruolo o tecnologia si configura a mano. Il grafo completo e in
+[AppHost.cs](src/Observatory.AppHost/AppHost.cs).
 
 ## Differenze a colpo d'occhio
 
 | Aspetto | Inline | Agent Skills | A2A |
 | --- | --- | --- | --- |
-| Agenti AI | Solo router nell'API | Solo router nell'API | Router nell'API; uno specialista nel servizio di ciascun ruolo |
-| Accesso del router al dominio | Tool ordinari -> HTTP business | Gli stessi tool ordinari -> HTTP business | Tool di delega -> SDK A2A JSON-RPC su HTTP |
-| Procedure | Inline nel prompt del router | Tre pacchetti Markdown caricati on demand dal provider nativo del router | Prompt inline del router e degli specialisti |
-| Modello/tool loop specialistico | Assente | Assente | Proprio `IChatClient` e ciclo tool per ogni specialista invocato |
-| Skill native | Assenti | `shop-catalog`, `shop-orders`, `shop-returns` | Assenti; `AgentCard.Skills` e solo metadata di capacita |
+| Agenti con modello | `router-inline` | `router-skills` | `router-a2a` e tre `agent-*` |
+| Accesso al dominio | Tool HTTP verso le API | Gli stessi tool HTTP | Delega A2A; ogni agente usa i tool HTTP della propria API |
+| Procedure | Tutte nel prompt del router | Skill native caricate on demand | Nel prompt di ogni agente |
+| Skill native | Assenti | `catalog`, `orders`, `returns` da `skill-catalog`, `skill-orders`, `skill-returns` | Assenti; `AgentCard.Skills` e metadata di protocollo |
 | `capabilities.agentNames` | `["router"]` | `["router"]` | `["router","catalog","orders","returns"]` |
-| Risposta finale | Router | Router | Router |
 
-Skills organizza le istruzioni, A2A realizza la delega tra veri agenti.
-Non c'e delega `AsAIFunction` a specialisti in-process in Inline o Skills.
-Il confronto con A2A cambia anche gli agenti e le possibili chiamate al
-modello: non misura il solo overhead di rete a parita di inferenze.
+I tool HTTP sono gli stessi ovunque: stesso nome, descrizione e schema.
+Cambia solo quale agente li usa. Skills organizza le istruzioni, A2A realizza
+la delega fra veri agenti. Il confronto con A2A cambia anche numero di agenti
+e chiamate al modello: non misura il solo overhead di rete.
 
 ### Come leggere gli schemi
 
-- I riquadri `demo-*` e `*-service` sono confini di processo o container.
-- Ogni agente disegnato e un `ChatClientAgent` di Microsoft Agent Framework.
-  Una API business o un documento skill **non** e un agente AI.
-- Le chiamate d'inferenza, omesse nei grafi, usano Azure OpenAI LIVE.
-  Ogni invio richiede configurazione, deployment, capacita, prezzi e consenso
-  di spesa; l'avvio e la scelta del grafo non invocano modelli.
-- Gli archi HTTP indicano rete reale. Le frecce tratteggiate distinguono
-  metadata, istruzioni ed evidenze dal percorso principale.
-- I file SQLite sono separati per demo e conservano evidenze. I servizi
-  condividono fixture Core e snapshot frozen, **non database di negozio
-  indipendenti**; soltanto Orders scrive bozze nello stato persistente.
+- Ogni riquadro e un processo separato con il proprio `Program.cs`.
+- Ogni agente e un `ChatClientAgent` di Microsoft Agent Framework. Una API di
+  business o un documento skill **non** e un agente.
+- Le chiamate al modello, omesse nei grafi, usano Azure OpenAI LIVE e
+  richiedono configurazione, prezzi e consenso di spesa.
+- Le frecce tratteggiate sono dati, istruzioni ed evidenze.
 
 ## Inline: un router, procedure nel prompt, tool HTTP
 
 ```mermaid
-flowchart TB
-    UI["Browser - UI React"] <-->|"HTTP JSON e SSE"| WEB["web - proxy Vite o Nginx"]
-
-    subgraph API["demo-inline - Observatory.Api"]
-        ENTRY["API HTTP + RunCoordinator + RunWorker"]
-        ROUTER["Unico agente: router<br/>procedure inline nel prompt"]
-        TOOLS["ShopFunctions + ShopServiceClient<br/>funzioni ordinarie del framework"]
-        META["Catalogo, immagini e provenance<br/>copia metadata/UI; non IShopData"]
-        STORE["EvidenceStore"]
-        ENTRY -->|"esegue la run"| ROUTER
-        ROUTER <-->|"tool calling"| TOOLS
-        META -.-> ENTRY
-        ENTRY <--> STORE
-        ROUTER -.->|"eventi e ledger delle chiamate effettive"| STORE
+flowchart LR
+    WEB["web (React + proxy Vite)"] -->|"/api/inline/*"| ROUTER
+    subgraph RI["router-inline"]
+        ROUTER["InlineRouter<br/>prompt: tutte le procedure<br/>tool: catalog + orders + returns"]
     end
-
-    subgraph CATALOG["catalog-service - ruolo catalog"]
-        CATALOG_HTTP["API Catalog<br/>ricerca, conteggi, faccette, dettagli"]
-    end
-    subgraph ORDERS["orders-service - ruolo orders"]
-        ORDERS_HTTP["API Orders<br/>ordini e bozze"]
-    end
-    subgraph RETURNS["returns-service - ruolo returns"]
-        RETURNS_HTTP["API Returns<br/>policy e valutazioni"]
-    end
-
-    WEB <-->|"/api/inline/* diventa /api/*"| ENTRY
-    TOOLS <-->|"HTTP /catalog/query, /catalog/facets, /products"| CATALOG_HTTP
-    TOOLS <-->|"HTTP /orders e /return-drafts"| ORDERS_HTTP
-    TOOLS <-->|"HTTP /policies e /return-assessments"| RETURNS_HTTP
-    CATALOG_HTTP -.->|"GET /catalog prima dell'ascolto API"| META
-    FIXTURES["Core + snapshot frozen condiviso<br/>.appdata/catalog"] -.-> CATALOG_HTTP
-    FIXTURES -.-> ORDERS_HTTP
-    FIXTURES -.-> RETURNS_HTTP
-    ORDERS_HTTP -->|"solo Orders scrive"| DRAFTS[("Bozze sintetiche persistenti<br/>.appdata/domain")]
-    STORE <--> DB[("SQLite della demo inline<br/>conversazioni, run, eventi e ledger")]
-
-    style API fill:#f0fdfa,stroke:#0f766e,color:#134e4a
+    ROUTER -->|"HTTP"| SC["shop-catalog"]
+    ROUTER -->|"HTTP"| SO["shop-orders"]
+    ROUTER -->|"HTTP"| SR["shop-returns"]
 ```
 
-1. L'API registra la richiesta e il worker esegue il router.
-2. Il router sceglie tool ordinari come `get_order` o `assess_return`.
-   Il framework invoca funzioni C# che effettuano HTTP al servizio competente.
-3. Il servizio applica le validazioni di dominio, senza inferenza
-   specialistica. Il router usa i risultati per comporre la risposta.
-
-I servizi espongono anche A2A e il proprio pacchetto skill, ma questo percorso
-non li usa. Non ci sono agenti Catalog/Orders/Returns nel processo API.
+Il router sceglie tool come `get_order` o `assess_return`; ogni tool e una
+chiamata HTTP all'API competente, che applica le regole di dominio senza
+inferenza. Codice: [InlineRouter.cs](src/Routers/Observatory.Router.Inline/InlineRouter.cs).
 
 ## Agent Skills: lo stesso router HTTP, istruzioni progressive
 
 ```mermaid
-flowchart TB
-    UI["Browser - UI React"] <-->|"HTTP JSON e SSE"| WEB["web - proxy Vite o Nginx"]
-
-    subgraph API["demo-skills - Observatory.Api"]
-        ENTRY["API HTTP + RunCoordinator + RunWorker"]
-        ROUTER["Unico agente: router"]
-        PROVIDER["AgentSkillsProvider nativo<br/>discovery e caricamento progressivo"]
-        FILES["Copie bundled fidate e versionate<br/>shop-catalog, shop-orders, shop-returns"]
-        TOOLS["ShopFunctions + ShopServiceClient<br/>stessi tool business di Inline"]
-        META["Catalogo, immagini e provenance<br/>copia metadata/UI; non IShopData"]
-        STORE["EvidenceStore"]
-        ENTRY --> ROUTER
-        ROUTER <-->|"load_skill / read_skill_resource"| PROVIDER
-        FILES -.->|"lettura Markdown locale"| PROVIDER
-        ROUTER <-->|"tool calling, non delega"| TOOLS
-        META -.-> ENTRY
-        ENTRY <--> STORE
-        ROUTER -.->|"eventi, skill.loaded e ledger"| STORE
+flowchart LR
+    WEB["web"] -->|"/api/skills/*"| ROUTER
+    subgraph RS["router-skills"]
+        ROUTER["SkillsRouter<br/>un modello + RemoteSkillsSource<br/>tool: catalog + orders + returns"]
     end
-
-    subgraph CATALOG["catalog-service - ruolo catalog"]
-        CATALOG_HTTP["API Catalog + skill shop-catalog"]
+    subgraph SS["skill sites (no model)"]
+        SKC["skill-catalog<br/>GET /skills<br/>GET /skills/catalog/SKILL.md"]
+        SKO["skill-orders<br/>GET /skills<br/>GET /skills/orders/SKILL.md"]
+        SKR["skill-returns<br/>GET /skills<br/>GET /skills/returns/SKILL.md<br/>GET /skills/returns/references/decision-checklist.md"]
     end
-    subgraph ORDERS["orders-service - ruolo orders"]
-        ORDERS_HTTP["API Orders + skill shop-orders"]
-    end
-    subgraph RETURNS["returns-service - ruolo returns"]
-        RETURNS_HTTP["API Returns + skill shop-returns<br/>risorsa decision-checklist.md"]
-    end
-
-    WEB <-->|"/api/skills/* diventa /api/*"| ENTRY
-    TOOLS <-->|"HTTP /catalog/query, /catalog/facets, /products"| CATALOG_HTTP
-    TOOLS <-->|"HTTP /orders e /return-drafts"| ORDERS_HTTP
-    TOOLS <-->|"HTTP /policies e /return-assessments"| RETURNS_HTTP
-    CATALOG_HTTP -.->|"GET /catalog prima dell'ascolto API"| META
-    FIXTURES["Core + snapshot frozen condiviso<br/>.appdata/catalog"] -.-> CATALOG_HTTP
-    FIXTURES -.-> ORDERS_HTTP
-    FIXTURES -.-> RETURNS_HTTP
-    ORDERS_HTTP -->|"solo Orders scrive"| DRAFTS[("Bozze sintetiche persistenti<br/>.appdata/domain")]
-    STORE <--> DB[("SQLite della demo skills<br/>conversazioni, run, eventi e ledger")]
-
-    style API fill:#eff6ff,stroke:#2563eb,color:#1e3a8a
-    style PROVIDER fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
+    ROUTER -.->|"GET /skills (indice)"| SKC
+    ROUTER -.->|"GET /skills (indice)"| SKO
+    ROUTER -.->|"GET /skills (indice)"| SKR
+    ROUTER -.->|"load_skill / read_skill_resource"| SKC
+    ROUTER -.->|"load_skill"| SKO
+    ROUTER -.->|"load_skill / read_skill_resource"| SKR
+    ROUTER -->|"HTTP"| SC["shop-catalog"]
+    ROUTER -->|"HTTP"| SO["shop-orders"]
+    ROUTER -->|"HTTP"| SR["shop-returns"]
 ```
 
-1. Il router riceve istruzioni di sicurezza e discovery delle skill.
-2. `load_skill` carica il relativo `SKILL.md`; `read_skill_resource` puo
-   aggiungere, per Returns, `references/decision-checklist.md`.
-3. Il router invoca direttamente gli stessi tool HTTP di Inline. Il
-   caricamento di una skill non delega a un altro agente.
+Ogni skill e pubblicata dal proprio skill site in
+[src/Skills](src/Skills). Il router legge solo l'indice in anticipo via
+service discovery (`http://skill-*`), poi scarica `SKILL.md` e le risorse
+Markdown solo quando il provider nativo esegue `load_skill` o
+`read_skill_resource`. Gli host fidati sono solo `skill-catalog`,
+`skill-orders`, `skill-returns`; errori HTTP, host non fidati o contenuti non
+Markdown chiudono la run con `skill_unavailable`. Il router usa comunque i
+propri tool HTTP e chiama direttamente le API `shop-*`: non delega ad agenti.
+Codice: [SkillsRouter.cs](src/Routers/Observatory.Router.Skills/SkillsRouter.cs).
 
-Il provider legge copie **bundled fidate** degli stessi tre pacchetti
-pubblicati dai servizi via `/skills/shop-{role}/SKILL.md`. Non scarica
-Markdown dalla rete durante la run e non esegue script. Le copie sono
-distribuite e versionate insieme al codice; non esiste una skill `shop-router`.
-La checklist aggiuntiva appartiene soltanto al pacchetto Returns.
-
-Le skill contengono procedure, non la fonte autorevole di prezzi, ordini
-o policy. I fatti arrivano dalle API business. Il caricamento avviene su
-richiesta del router, non eseguendo scenari o modelli allo startup.
-
-## A2A: router e tre servizi con veri agenti remoti
+## A2A: un router e tre agenti specialisti
 
 ```mermaid
-flowchart TB
-    UI["Browser - UI React"] <-->|"HTTP JSON e SSE"| WEB["web - proxy Vite o Nginx"]
-
-    subgraph API["demo-a2a - Observatory.Api"]
-        ENTRY["API HTTP + RunCoordinator + RunWorker"]
-        ROUTER["Router<br/>prompt inline e proprio IChatClient"]
-        CLIENT["Tool di delega<br/>A2ATransport + SDK A2A"]
-        META["Catalogo, immagini e provenance<br/>copia metadata/UI; non IShopData"]
-        STORE["EvidenceStore"]
-        ENTRY --> ROUTER
-        ROUTER <-->|"catalog_agent / orders_agent / returns_agent"| CLIENT
-        META -.-> ENTRY
-        ENTRY <--> STORE
-        ROUTER -.->|"ledger locale"| STORE
-        CLIENT -.->|"import degli eventi e ledger remoti"| STORE
+flowchart LR
+    WEB["web"] -->|"/api/a2a/*"| ROUTER
+    subgraph RA["router-a2a"]
+        ROUTER["A2ARouter<br/>tool: catalog_agent, orders_agent, returns_agent"]
     end
-
-    subgraph CATALOG["catalog-service - ruolo catalog"]
-        CATALOG_SERVER["/a2a/catalog + agent card"]
-        CATALOG_AGENT["Agente Catalog<br/>proprio modello e ciclo tool"]
-        CATALOG_TOOLS["Tool locali -> Core / IShopData"]
-        CATALOG_HTTP["GET /catalog per metadata/UI"]
-        CATALOG_TELEMETRY["RemoteTelemetryStore in memoria"]
-        CATALOG_SERVER <--> CATALOG_AGENT
-        CATALOG_AGENT --> CATALOG_TOOLS
-        CATALOG_AGENT -.-> CATALOG_TELEMETRY
+    subgraph AC["agent-catalog"]
+        CATALOG["CatalogAgent<br/>proprio modello, prompt e tool"]
     end
-    subgraph ORDERS["orders-service - ruolo orders"]
-        ORDERS_SERVER["/a2a/orders + agent card"]
-        ORDERS_AGENT["Agente Orders<br/>proprio modello e ciclo tool"]
-        ORDERS_TOOLS["Tool locali -> Core / IShopData"]
-        ORDERS_TELEMETRY["RemoteTelemetryStore in memoria"]
-        ORDERS_SERVER <--> ORDERS_AGENT
-        ORDERS_AGENT --> ORDERS_TOOLS
-        ORDERS_AGENT -.-> ORDERS_TELEMETRY
+    subgraph AO["agent-orders"]
+        ORDERS["OrdersAgent"]
     end
-    subgraph RETURNS["returns-service - ruolo returns"]
-        RETURNS_SERVER["/a2a/returns + agent card"]
-        RETURNS_AGENT["Agente Returns<br/>proprio modello e ciclo tool"]
-        RETURNS_TOOLS["Tool locali -> Core / IShopData"]
-        RETURNS_TELEMETRY["RemoteTelemetryStore in memoria"]
-        RETURNS_SERVER <--> RETURNS_AGENT
-        RETURNS_AGENT --> RETURNS_TOOLS
-        RETURNS_AGENT -.-> RETURNS_TELEMETRY
+    subgraph AR["agent-returns"]
+        RETURNS["ReturnsAgent"]
     end
-
-    WEB <-->|"/api/a2a/* diventa /api/*"| ENTRY
-    CLIENT <-->|"HTTP discovery + JSON-RPC message/send"| CATALOG_SERVER
-    CLIENT <-->|"HTTP discovery + JSON-RPC message/send"| ORDERS_SERVER
-    CLIENT <-->|"HTTP discovery + JSON-RPC message/send"| RETURNS_SERVER
-    CATALOG_TELEMETRY -.->|"GET /telemetry separato"| CLIENT
-    ORDERS_TELEMETRY -.->|"GET /telemetry separato"| CLIENT
-    RETURNS_TELEMETRY -.->|"GET /telemetry separato"| CLIENT
-    CATALOG_HTTP -.->|"GET /catalog prima dell'ascolto API"| META
-    FIXTURES["Core + snapshot frozen condiviso<br/>.appdata/catalog"] -.-> CATALOG_TOOLS
-    FIXTURES -.-> CATALOG_HTTP
-    FIXTURES -.-> ORDERS_TOOLS
-    FIXTURES -.-> RETURNS_TOOLS
-    ORDERS_TOOLS -->|"solo Orders scrive"| DRAFTS[("Bozze sintetiche persistenti<br/>.appdata/domain")]
-    STORE <--> DB[("SQLite della demo a2a<br/>conversazioni, run, eventi e ledger")]
-
-    style API fill:#faf5ff,stroke:#9333ea,color:#581c87
-    style CATALOG fill:#f5f3ff,stroke:#7c3aed,color:#4c1d95
-    style ORDERS fill:#f5f3ff,stroke:#7c3aed,color:#4c1d95
-    style RETURNS fill:#f5f3ff,stroke:#7c3aed,color:#4c1d95
+    ROUTER -->|"A2A: agent card + message/send"| CATALOG
+    ROUTER -->|"A2A"| ORDERS
+    ROUTER -->|"A2A"| RETURNS
+    CATALOG -->|"HTTP"| SC["shop-catalog"]
+    ORDERS -->|"HTTP"| SO["shop-orders"]
+    ORDERS -->|"HTTP (ricontrollo del reso)"| SR["shop-returns"]
+    RETURNS -->|"HTTP"| SR
+    CATALOG -.->|"evidenze nei metadata della risposta"| ROUTER
 ```
 
-1. Il tool di delega usa l'origine configurata per il ruolo e verifica
-   `GET /a2a/{role}/.well-known/agent-card.json`.
-2. L'SDK ufficiale invia `message/send` JSON-RPC a `/a2a/{role}` di quel
-   servizio. Solo lo specialista configurato puo essere eseguito.
-3. Lo specialista ha un proprio client di inferenza, prompt inline e ciclo
-   tool. Usa le stesse operazioni Core delle sue API business, localmente
-   al servizio. Non carica `AgentSkillsProvider` o Markdown nativo.
-4. Il risultato di dominio torna al router. Gli eventi remoti sono raccolti
-   separatamente da `/telemetry/{runId}?invocationId=...` sull'origine del
-   ruolo e poi persistiti dall'API, mai inseriti nel messaggio al modello.
+1. Il tool di delega legge `GET /a2a/{ruolo}/.well-known/agent-card.json`
+   da `http://agent-{ruolo}` e invia `message/send` con l'SDK A2A ufficiale.
+2. Lo specialista esegue il proprio `ChatClientAgent` con i tool HTTP della
+   propria API di business: e un vero agente, non una REST API rinominata.
+3. La risposta porta il risultato di dominio nel testo e le **evidenze**
+   (chiamate al modello, token, costi, tool) nei metadata
+   `observatory.evidence`. Il router le aggiunge al ledger della run; il suo
+   modello riceve solo la risposta testuale. Un errore di dominio arriva in
+   `observatory.error` con il suo codice, e le evidenze restano contabilizzate.
+4. Per l'anteprima dei prompt il router chiede a ogni agente
+   `POST /prompts/preview`: ognuno possiede le proprie istruzioni.
 
-I tre specialisti sono quindi **tre processi/container distinti**, con un
-solo progetto e un'unica immagine AgentHost riutilizzata. Non e una REST API
-personalizzata ribattezzata A2A. Le `Skills` presenti nella Agent Card sono
-metadata di capacita del protocollo, non il provider nativo della demo Skills.
-Le API business e i file skill restano esposti dai servizi, anche se il
-percorso A2A usa i loro agenti e non carica quei file.
+Codice: [A2ARouter.cs](src/Routers/Observatory.Router.A2A/A2ARouter.cs),
+[CatalogAgent.cs](src/Agents/Observatory.Agent.Catalog/CatalogAgent.cs),
+[SpecialistClient.cs](src/Shared/Observatory.AgentRuntime/A2A/SpecialistClient.cs),
+[SpecialistHostApplication.cs](src/Shared/Observatory.SpecialistHost/SpecialistHostApplication.cs).
 
 ## Contratti e confini di fiducia
 
-Le origini sono `Agents:Endpoints:catalog`, `Agents:Endpoints:orders` e
-`Agents:Endpoints:returns`. Non includono percorsi `/a2a` o `/api`.
-
-| Servizio | Endpoint business | Tool AI corrispondente |
+| API | Endpoint | Tool AI |
 | --- | --- | --- |
-| Catalog | `GET /catalog` | Nessuno: snapshot completo soltanto per metadata/UI |
+| Catalog | `GET /catalog` | Nessuno: snapshot per la UI |
 | Catalog | `GET /products?query=&maxPrice=&take=` | `search_products` |
 | Catalog | `GET /catalog/query?query=&category=&color=&maxPrice=&inStockOnly=&take=` | `query_catalog` |
 | Catalog | `GET /catalog/facets` | `get_catalog_facets` |
@@ -260,103 +163,45 @@ Le origini sono `Agents:Endpoints:catalog`, `Agents:Endpoints:orders` e
 | Returns | `GET /policies` | `get_policies` |
 | Returns | `POST /return-assessments` con `{orderId,reason}` | `assess_return` |
 
-Ogni servizio mappa soltanto le proprie API business, il proprio
-`/a2a/{role}` con agent card e `/skills/shop-{role}/SKILL.md`.
-Returns aggiunge `/skills/shop-returns/references/decision-checklist.md`.
-Inline/Skills espongono al router tutti i tool business; A2A espone al router
-solo i tre tool di delega e a ogni specialista solo i tool del proprio ruolo.
+- `X-Observatory-Customer-Id` e impostato dal backend sull'identita fidata,
+  mai da un argomento del modello o da un header della UI.
+- `X-Observatory-Confirm-Action=true` e impostato solo dopo consenso
+  esplicito validato; Orders rivaluta l'ammissibilita prima della bozza.
+- A2A trasporta cliente, consenso e configurazione nei metadata della
+  richiesta, non nel testo affidato al modello.
+- I servizi accettano solo host locali (`AllowedHosts`); il browser parla
+  solo con i router attraverso `web`.
 
-- `X-Observatory-Customer-Id` viene impostato dal backend sull'identita
-  fidata, non da un argomento generato dal modello o da un header UI.
-- `X-Observatory-Confirm-Action=true` viene impostato dal backend solo dopo
-  consenso esplicito validato. Orders rivaluta l'ammissibilita prima di
-  creare una bozza; testo del modello e semplice richiesta HTTP non bastano.
-- `X-Observatory-A2A-Key` autentica **tutti** gli endpoint backend non-health
-  quando `Agents:AllowRemote=true`: business, skill, discovery, A2A,
-  telemetria e indice. Solo `GET /health` e `GET /alive` sono esenti.
-- A2A trasporta customer/consenso e configurazione nella metadata fidata
-  della richiesta backend, non nel testo di dominio affidato al modello.
-- Il browser usa soltanto le API delle demo attraverso `web`; non riceve
-  il segreto e non chiama direttamente i servizi.
+I tool restituiscono `ProductFact` e aggregati senza immagini. `query_catalog`
+conta tutti i risultati prima di `take`. I colori derivano da titolo,
+descrizione e tag, non dalle immagini. Le bozze sono sintetiche: nessun
+rimborso o pagamento. MCP non e implementato.
 
-Le immagini sono URL pubblici per la UI: i tool AI restituiscono
-`ProductFact` e aggregati senza immagini. `query_catalog` conta tutti i
-modelli e pezzi corrispondenti ai filtri prima di applicare `take` agli
-esempi. `get_catalog_facets` espone categorie e colori testuali reali.
-I colori derivano da titolo, descrizione e tag, non da analisi delle immagini;
-un prodotto multicolore puo appartenere a piu faccette.
-Le bozze sono sintetiche, non eseguono
-rimborsi o pagamenti.
+## Codice condiviso e osservabilita
 
-`ToolTransport=direct` distingue funzioni del framework da MCP, **non**
-dominio in-process. Le chiamate business HTTP di Inline/Skills sono reali;
-in A2A sono reali discovery, delega e raccolta telemetria HTTP. MCP non e
-implementato e non va disegnato come un quarto percorso disponibile.
+| Libreria | Contenuto |
+| --- | --- |
+| [Observatory.Core](src/Shared/Observatory.Core) | Contratti, dati del negozio, pricing |
+| [Observatory.ServiceDefaults](src/Shared/Observatory.ServiceDefaults) | Aspire: OpenTelemetry, health, service discovery, sorgenti GenAI native, costo sul span |
+| [Observatory.AgentRuntime](src/Shared/Observatory.AgentRuntime) | `IAgent`, `AgentRunner`, pipeline del modello, evidenze, tool HTTP del negozio, client A2A |
+| [Observatory.SpecialistHost](src/Shared/Observatory.SpecialistHost) | Host degli agenti specialisti: server A2A, agent card, anteprima prompt |
+| [Observatory.RouterHost](src/Shared/Observatory.RouterHost) | Host dei router: conversazioni, run, SSE, export, SQLite |
 
-## Avvio, persistenza e osservabilita comuni
+L'osservabilita e quella di Aspire: ServiceDefaults registra OpenTelemetry e
+le sorgenti native di Microsoft.Extensions.AI e Agent Framework. Il trace e
+distribuito: in A2A una sola traccia attraversa router, agente e API. Il solo
+comportamento aggiunto e il costo stimato sul span della chiamata al modello
+e nella metrica `observatory.ai.cost`.
 
-Un solo Aspire AppHost avvia `web`, `demo-inline`, `demo-skills`, `demo-a2a`,
-`catalog-service`, `orders-service`, `returns-service`. Tutte le API ricevono
-le tre origini dinamiche e attendono la salute di tutti i servizi.
-Il proxy conserva `/api/inline`, `/api/skills`, `/api/a2a`.
+Il ledger per chiamata della UI (token, cache, costo, richiesta logica) e un
+dato dell'applicazione salvato nello SQLite di ogni router, non un secondo
+backend di tracing.
 
-A processi, l'accesso ai servizi e loopback-only. Nei container, Aspire
-propaga il segreto generato e `Agents:AllowRemote=true` ai soli backend.
-Il publish dell'immagine AgentHost precede quello dell'immagine API per
-evitare scritture concorrenti negli output condivisi; ogni immagine e
-riutilizzata da tre istanze.
+### Stato e avvio
 
-### Inizializzazione di base, non esecuzione degli scenari
-
-1. I servizi inizializzano `ShopData` e le fixture Core prima dell'ascolto.
-   `.appdata\catalog\products.snapshot.json` viene copiato atomicamente
-   dallo snapshot bundled solo se manca. Una copia esistente e validata e
-   riutilizzata, senza alterare acquisizione/hash o cancellare bozze.
-2. Le API non inizializzano un dominio locale: prima dell'ascolto caricano
-   catalogo, immagini e provenance tramite `GET /catalog` di Catalog.
-   Questa copia serve a UI e metadata delle run, non ai tool del modello.
-3. Gli scenari sono definizioni locali. Non si crea alcuna conversazione
-   o run, non si invocano modelli e non si scaricano dati da Internet.
-   Il fetch interno HTTP verso Catalog non e un seed o uno scenario.
-
-I servizi condividono lo snapshot e le fixture deterministiche della
-libreria Core. Solo Orders scrive le bozze in `.appdata\domain`; non ci
-sono database di dominio separati per servizio. Nei container questi
-percorsi sono `/state/catalog` e `/state/domain`. Uno snapshot non valido
-interrompe lo startup, senza fallback silenzioso.
-
-Ogni API conserva solo il proprio file `.appdata\{tecnologia}\observatory.sqlite`,
-montato come `/state/{tecnologia}/observatory.sqlite` nei container.
-La separazione di SQLite riguarda conversazioni, run, timeline e ledger,
-non il catalogo o gli ordini del negozio.
-
-Ci sono due destinazioni distinte delle evidenze:
-
-- `EvidenceStore`/SQLite della demo: eventi, ledger per-call, UI, SSE, replay
-  ed export, inclusi gli eventi remoti importati in A2A.
-- OpenTelemetry/OTLP: span, log e metriche nella dashboard Aspire. Non
-  sostituisce SQLite e non va sommato al ledger come ulteriore fatturazione.
-
-SSE trasmette eventi applicativi e una risposta bufferizzata, non token
-streaming del provider. Token e costo sono mostrati solo quando disponibili
-dall'usage del provider e dalle tariffe configurate. Questi schemi non
-costituiscono un report di test o benchmark gia completati.
-
-## Riferimenti nel codice
-
-- [Orchestrazione Aspire](src/Observatory.AppHost/AppHost.cs)
-- [Router, tool ordinari, specialisti A2A e provider Skills](src/Observatory.Agents/ObservatoryAgentRuntime.cs)
-- [Istruzioni e profili](src/Observatory.Agents/AgentPrompts.cs)
-- [Pacchetti skill dei servizi](src/Observatory.Agents/Skills)
-- [Client HTTP business](src/Observatory.Agents/ShopServiceClient.cs)
-- [Client A2A e importazione telemetria](src/Observatory.Agents/A2ATransport.cs)
-- [Host configurato per ruolo](src/Observatory.AgentHost/AgentHostApplication.cs)
-- [API business e file skill per ruolo](src/Observatory.AgentHost/BusinessEndpoints.cs)
-- [Client di inferenza e cattura logica](src/Observatory.Agents/ModelProviderFactory.cs)
-- [Tool e validazioni](src/Observatory.Agents/ShopFunctions.cs)
-- [Fixture Core e inizializzazione snapshot](src/Observatory.Core/ShopData.cs)
-- [Startup API](src/Observatory.Api/Program.cs)
-- [Caricamento metadata da Catalog](src/Observatory.Api/RemoteShopCatalog.cs)
-- [Coordinamento e worker](src/Observatory.Api/RunProcessing.cs)
-- [Persistenza delle evidenze](src/Observatory.Api/EvidenceStore.cs)
-- [OpenTelemetry condiviso](src/Observatory.ServiceDefaults/Extensions.cs)
+1. Le API di business inizializzano catalogo, ordini e policy da
+   `.appdata\catalog` e `.appdata\domain`; solo Orders scrive bozze.
+2. Ogni router carica lo snapshot da `GET /catalog` di `shop-catalog` prima
+   di accettare richieste e salva conversazioni e run in
+   `.appdata\{inline|skills|a2a}\observatory.sqlite`.
+3. Lo startup non chiama modelli, non crea conversazioni e non esegue scenari.

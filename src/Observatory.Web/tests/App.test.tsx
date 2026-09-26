@@ -1,15 +1,15 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import App, { parseRoute } from './App';
-import { defaultPromptBlocks, runConfigurationSchema } from './contracts';
-import type { ConversationRecord, Product, RunConfiguration, RunRecord, SubmitTurnRequest, Technology } from './contracts';
-import { isRecord } from './lib/redaction';
-import { demoMetadata } from './metadata';
+import App, { parseRoute } from '../src/App';
+import { defaultPromptBlocks, runConfigurationSchema } from '../src/contracts';
+import type { ConversationRecord, Product, RunConfiguration, RunRecord, SubmitTurnRequest, Technology } from '../src/contracts';
+import { isRecord } from '../src/lib/redaction';
+import { demoMetadata } from '../src/metadata';
 import {
   comparisonScenarios, configurationFor, conversation, demoData, event, FakeEventSource, jsonResponse, liveConfigurationFor,
   modelCall, pathOf, product, promptPreview, run, scenario,
-} from './test/fixtures';
+} from './support/fixtures';
 
 function backend(technology: Technology = 'inline', catalog: readonly Product[] = [product]) {
   const base = `/api/${technology}`;
@@ -146,8 +146,12 @@ async function authorizeLiveSend(user: ReturnType<typeof userEvent.setup>) {
   const previousRoute = window.location.hash;
   let budget = screen.queryByRole('spinbutton', { name: 'Budget approvato (USD)' });
   if (!budget) {
-    await user.click(screen.getByRole('link', { name: 'Configurazione' }));
-    await user.click(screen.getByText('Modelli per agente, limiti ed esempi di prompt'));
+    const advancedSettings = screen.queryByText('Modelli per agente, limiti ed esempi di prompt');
+    if (advancedSettings) await user.click(advancedSettings);
+    else {
+      await user.click(screen.getByRole('link', { name: 'Configurazione' }));
+      await user.click(screen.getByText('Modelli per agente, limiti ed esempi di prompt'));
+    }
     budget = await screen.findByRole('spinbutton', { name: 'Budget approvato (USD)' });
   }
   if ((budget as HTMLInputElement).value !== '0.1') {
@@ -203,6 +207,7 @@ describe('flusso applicazione su API reali simulate nel test', () => {
     expect(FakeEventSource.instances).toHaveLength(0);
     await openChat(user);
     expect(screen.getByRole('checkbox', { name: /Autorizzo questo invio LIVE/ })).not.toBeChecked();
+    await user.click(screen.getByText('Opzioni chat'));
     await user.click(screen.getByText('Percorso guidato · sei turni'));
     const consent = screen.getByRole('checkbox', { name: /Autorizzo solo bozza sintetica/ });
     expect(consent).not.toBeChecked();
@@ -210,7 +215,9 @@ describe('flusso applicazione su API reali simulate nel test', () => {
     expect(consent).not.toBeChecked();
     expect(screen.getByRole('textbox', { name: 'Messaggio al Router' })).toHaveValue('Confermo solo una bozza sintetica.');
     expect(api.submissions).toHaveLength(0);
+    await user.click(screen.getByText('Opzioni chat'));
     await user.click(consent);
+    await user.click(screen.getByText('Opzioni chat'));
     await authorizeLiveSend(user);
     await user.click(screen.getByRole('button', { name: 'Invia' }));
     await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
@@ -234,6 +241,9 @@ describe('flusso applicazione su API reali simulate nel test', () => {
     expect(stream?.closed).toBe(true);
     expect(api.submissions).toHaveLength(1);
     expect(api.fetchMock.mock.calls.some(([input]) => pathOf(input) === '/api/inline/conversations/conversation-1')).toBe(true);
+    expect(screen.getByLabelText('Consumi del run selezionato')).not.toBeVisible();
+    await user.click(screen.getByText('Dettagli run'));
+    expect(screen.getByLabelText('Consumi del run selezionato')).toBeVisible();
     expect(screen.getByLabelText('Consumi del run selezionato')).toHaveTextContent('Input: Non disponibile');
     expect(screen.getByLabelText('Consumi del run selezionato')).toHaveTextContent('Costo stimato: Non disponibile');
     await user.click(screen.getByRole('link', { name: 'Dettaglio per modello' }));
@@ -280,7 +290,8 @@ describe('flusso applicazione su API reali simulate nel test', () => {
     expect(consent).not.toBeChecked();
     expect(screen.getByRole('textbox', { name: 'Messaggio al Router' })).toHaveValue('');
     await act(async () => { FakeEventSource.instances[0]?.fail(); });
-    await screen.findByText(/Stream interrotto/);
+    await screen.findByText(/Controllo lo stato via GET, senza reinviare/);
+    await user.click(screen.getByText('Dettagli run'));
     await user.click(screen.getByRole('button', { name: 'Riconnetti SSE' }));
     expect(api.submissions).toHaveLength(2);
     expect(FakeEventSource.instances).toHaveLength(2);
@@ -412,7 +423,7 @@ describe('flusso applicazione su API reali simulate nel test', () => {
     const nextSettings = screen.getByRole('region', { name: 'Impostazioni del prossimo messaggio' });
     expect(nextSettings).toHaveTextContent('GPT-5 (gpt5)');
     expect(nextSettings).toHaveTextContent('BAD');
-    expect(screen.getByText(/LIVE: il prossimo Invio può effettuare chiamate reali a pagamento/)).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /Autorizzo questo invio LIVE e i possibili costi/ })).toBeVisible();
     const firstText = 'Cerca vestiti rossi.';
     await user.type(screen.getByRole('textbox', { name: 'Messaggio al Router' }), firstText);
     await authorizeLiveSend(user);
@@ -566,7 +577,7 @@ describe('flusso applicazione su API reali simulate nel test', () => {
       return originalFetch(input, init);
     });
     render(<App />);
-    expect(await screen.findByText('LIVE')).toBeInTheDocument();
+    expect((await screen.findAllByText('LIVE', { exact: true })).length).toBeGreaterThan(0);
     await openChat(user);
     await user.click(screen.getByRole('checkbox', { name: /Autorizzo questo invio LIVE/ }));
     await user.click(screen.getByRole('checkbox', { name: /Autorizzo solo bozza sintetica/ }));
@@ -721,6 +732,7 @@ describe('flusso applicazione su API reali simulate nel test', () => {
     await openChat(user);
     await user.type(screen.getByRole('textbox', { name: 'Messaggio al Router' }), 'Verifica il prodotto #83.');
     await authorizeLiveSend(user);
+    screen.getByRole('textbox', { name: 'Messaggio al Router' }).focus();
     await user.keyboard('{Control>}{Enter}{/Control}');
     await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
     const stream = FakeEventSource.instances[0];

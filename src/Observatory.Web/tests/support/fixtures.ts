@@ -1,8 +1,8 @@
 import type {
   ConversationRecord, DemoConfiguration, DemoData, ModelCallRecord, Product,
   PromptPreview, RunConfiguration, RunEvent, RunRecord, ScenarioDefinition, Technology,
-} from '../contracts';
-import { defaultPromptBlocks } from '../contracts';
+} from '../../src/contracts';
+import { defaultPromptBlocks } from '../../src/contracts';
 
 export const configuration: DemoConfiguration = {
   technology: 'inline', defaultMode: 'live', allowLive: false,

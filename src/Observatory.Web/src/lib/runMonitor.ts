@@ -49,6 +49,9 @@ export function observeRun(
     source?.close();
     source = null;
   };
+  const checkStatusPeriodically = () => {
+    if (polling === null) polling = setInterval(() => { void refresh(); }, 2500);
+  };
 
   const refresh = (): Promise<void> => {
     if (controller.signal.aborted) return Promise.resolve();
@@ -74,10 +77,15 @@ export function observeRun(
               throw error;
             }
           }
+        } else if (tracked.watch) {
+          // SSE can remain open even when a proxy stops delivering events.
+          checkStatusPeriodically();
+          if (snapshot.connection === 'error') publish({ connection: 'polling' });
         }
       } catch (error) {
         if (controller.signal.aborted || isAbort(error)) return;
         stopPolling();
+        closeStream();
         publish({ error: errorMessage(error), connection: 'error' });
       } finally {
         pendingRead = null;
@@ -89,7 +97,7 @@ export function observeRun(
   const startPolling = (notice: string) => {
     closeStream();
     publish({ connection: 'polling', notice });
-    if (polling === null) polling = setInterval(() => { void refresh(); }, 2500);
+    checkStatusPeriodically();
     void refresh();
   };
 
@@ -97,6 +105,7 @@ export function observeRun(
     if (controller.signal.aborted || isTerminal(snapshot.record?.status)) return;
     closeStream();
     stopPolling();
+    checkStatusPeriodically();
     publish({ connection: 'connecting', error: null, notice: null });
     try {
       const stream = new EventSource(runEventsUrl(api.technology, tracked.runId));

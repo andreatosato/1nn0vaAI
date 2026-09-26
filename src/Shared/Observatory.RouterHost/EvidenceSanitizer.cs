@@ -3,7 +3,7 @@ using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Observatory.Core;
 
-namespace Observatory.Api;
+namespace Observatory.RouterHost;
 
 public sealed partial class EvidenceSanitizer
 {

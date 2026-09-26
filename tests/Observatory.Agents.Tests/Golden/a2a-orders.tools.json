@@ -1,0 +1,36 @@
+[
+  {
+    "name": "get_order",
+    "description": "Leggi un ordine del cliente autenticato della run; distingue l'importo effettivamente pagato dal prezzo di listino.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "orderId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "orderId"
+      ]
+    }
+  },
+  {
+    "name": "create_return_draft",
+    "description": "Crea una bozza sintetica di reso, non un rimborso. L'autorizzazione proviene solo dalla configurazione server della run, mai da argomenti del modello. L'idoneita viene ricontrollata.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "orderId": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "orderId",
+        "reason"
+      ]
+    }
+  }
+]

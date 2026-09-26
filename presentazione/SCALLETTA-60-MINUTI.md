@@ -1,6 +1,63 @@
 # Osservare l'AI per migliorare la qualità delle risposte e abbassare il costo dei modelli
 
-## Proposta per una sessione di 60 minuti
+## PPT attuale: 24 slide, 60 minuti
+
+La versione aggiornata è
+[Osservare-AI-Andrea-Tosato-senza-limiti.pptx](./Osservare-AI-Andrea-Tosato-senza-limiti.pptx),
+rigenerabile con `node presentazione\genera-presentazione.cjs` dalla root.
+Le durate nelle note del relatore determinano automaticamente i footer.
+
+| Minuti | Slide | Contenuto |
+|---|---|---|
+| 00–06 | 1–3 | Apertura, metriche e mappa dei workflow |
+| 06–14 | 4–8 | Rubrica, osservabilità, architettura, tool e descrizioni |
+| 14–18 | 9–10 | Skill distribuite, agent-as-tool, dialogo e responsabilità |
+| 18–26 | 11–13 | Evoluzione dei prompt, famiglie di modelli e contratto |
+| 26–40 | 14–18 | Token, cache, costo, latenza e disegno dell'esperimento |
+| 40–47 | 19 | Demo guidata |
+| 47–54 | 20–22 | Sei run LIVE, prompt effettivi ed esiti |
+| 54–55 | 23 | Pratiche operative |
+| 55–60 | 24 | Chiusura e Q&A |
+
+### Tre slide aggiunte
+
+- **Slide 3:** tutte le voci di *Workflow capabilities*, separate in
+  composizione, interazione/durabilità, operatività e cinque orchestrazioni
+  (Sequential, Concurrent, Handoff, Group Chat, Magentic). Agent-as-tool è
+  un pattern aggiuntivo, non un sesto workflow built-in.
+- **Slide 9:** differenze tra tool, skill e agent-as-tool, con attribuzione
+  a Tommaso Stocchi, foto del profilo e collegamenti cliccabili.
+- **Slide 10:** delega con ritorno, handoff e collaborazione; distinzione
+  tra pattern e protocolli A2A/MCP. Agent-as-tool è adatto a sottotask e
+  responsabilità chiare, ma non garantisce una latenza inferiore.
+
+Le tre coppie di misure citate nella slide 10 appartengono all'articolo,
+**non ad AI Observatory**: le skill risultano più rapide in quelle prove,
+ma con circa il 22% di token in più. Non è un benchmark controllato né
+un confronto di costi in dollari. Le sei run della nostra demo restano
+inalterate nelle slide 20–22. La nostra implementazione Skills usa
+API HTTP dedicate e tool nel router, non MCP.
+
+### Fonti delle nuove slide
+
+- [Ragionamento ChatGPT condiviso](https://chatgpt.com/s/t_6ab6cd6b438481919846351e496ee155)
+- [Tommaso Stocchi: From Specialist Agents to Distributed Skills over MCP](https://devblogs.microsoft.com/agent-framework/from-specialist-agents-to-distributed-skills-over-mcp/),
+  Microsoft Developer Blogs, 16 settembre 2026.
+- [Profilo autore e fonte della foto](https://devblogs.microsoft.com/agent-framework/author/tstocchi/).
+  [Foto originale 150×150](https://devblogs.microsoft.com/agent-framework/wp-content/uploads/sites/78/2024/09/codemotion25-small-150x150.webp),
+  convertita in [PNG per il PPT](./assets/tommaso-stocchi.png), senza generare
+  un ritratto artificiale. La disponibilità pubblica non implica una licenza libera.
+- [Workflow capabilities](https://learn.microsoft.com/en-us/agent-framework/workflows/)
+- [Handoff e agent-as-tools](https://learn.microsoft.com/en-us/agent-framework/workflows/orchestrations/handoff#differences-between-handoff-and-agent-as-tools)
+
+Le note contengono fonti, precisazioni e limiti delle misure. Non è stato
+generato un PDF.
+
+## Proposta iniziale di una sessione di 60 minuti (storico)
+
+La proposta qui sotto precede il PPT attuale: numerazione, tempi e budget
+non sono quelli della versione senza limiti. Per presentare usare la tabella
+aggiornata sopra e le note del PPT.
 
 **Sottotitolo:** Dal testo della chat alle evidenze: qualità, latenza, token e costo.
 

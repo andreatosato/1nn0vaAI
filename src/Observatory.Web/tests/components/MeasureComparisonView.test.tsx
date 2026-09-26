@@ -1,8 +1,8 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { jsonResponse, run } from '../test/fixtures';
-import { MeasureComparisonView } from './MeasureComparisonView';
+import { jsonResponse, run } from '../support/fixtures';
+import { MeasureComparisonView } from '../../src/components/MeasureComparisonView';
 
 describe('confronto misure per richiesta identica', () => {
   it('confronta run registrati delle tre demo senza eseguire inferenze', async () => {
@@ -71,7 +71,7 @@ describe('confronto misure per richiesta identica', () => {
     const selector = screen.getByRole('combobox', { name: 'Richiesta identica' });
     await user.selectOptions(selector, 'Richiesta senza costo');
     const table = screen.getByRole('table', { name: 'Run della richiesta selezionata · ordinati dal meno al più recente' });
-    expect(within(table).getAllByText('Non disponibile')).toHaveLength(3);
+    expect(within(table).getAllByText('Non disponibile')).toHaveLength(4);
     expect(within(table).queryByText('Richiesta differente')).not.toBeInTheDocument();
     expect(screen.getByText('Richiesta senza costo', { selector: 'strong' })).toBeVisible();
   });

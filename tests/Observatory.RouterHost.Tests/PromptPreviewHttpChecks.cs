@@ -4,10 +4,10 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
-using Observatory.Agents;
+using Observatory.AgentRuntime;
 using Observatory.Core;
 
-namespace Observatory.Api;
+namespace Observatory.RouterHost;
 
 internal static partial class PromptPreviewHttpChecks
 {
@@ -28,7 +28,7 @@ internal static partial class PromptPreviewHttpChecks
                 builder.Configuration.Sources.Clear();
                 var fixtureSettings = new Dictionary<string, string?>
                 {
-                    ["Demo:Technology"] = technology, ["Demo:AllowLive"] = "true",
+                    ["Demo:AllowLive"] = "true",
                     ["AzureOpenAI:Endpoint"] = "https://fixture.openai.azure.com",
                     ["Storage:Path"] = path
                 };
@@ -53,7 +53,10 @@ internal static partial class PromptPreviewHttpChecks
                 var catalog = new CatalogProbe();
                 var runtime = new RuntimeProbe();
                 builder.Services.AddSingleton<IShopCatalog>(catalog);
-                builder.Services.AddSingleton<IAgentRuntime>(runtime);
+                builder.Services.AddSingleton(TestArchitectures.For(technology));
+                var router = new ProbeRouter(TestArchitectures.For(technology), runtime);
+                builder.Services.AddSingleton<IArchitectureRouter>(router);
+                builder.Services.AddSingleton<IAgentRuntime>(router);
                 var allowPersistence = false;
                 var storeCreations = 0;
                 builder.Services.AddSingleton(services =>
@@ -156,7 +159,7 @@ internal static partial class PromptPreviewHttpChecks
             $"Preview accepts full/legacy RunConfiguration as JSON: {technology}/{configuration.PromptProfile}.");
         var preview = await ReadJson(response, token);
         CheckProperties(preview, ["technology", "agents", "notice"]);
-        CheckJsonEqual(preview, JsonSerializer.SerializeToElement(PromptLaboratory.Preview(technology, configuration), ApiJson.Options),
+        CheckJsonEqual(preview, JsonSerializer.SerializeToElement(TestArchitectures.Preview(technology, configuration), ApiJson.Options),
             "HTTP preview returns the exact public instructions and notice, not a derived/synthetic prompt.");
         Check(!string.IsNullOrWhiteSpace(preview.GetProperty("notice").GetString()), "Preview includes its limitations notice.");
         string[] expected = technology == DemoTechnologies.A2A ? ["router", "catalog", "orders", "returns"] : ["router"];
@@ -255,9 +258,10 @@ internal static partial class PromptPreviewHttpChecks
         var before = ApiJson.Serialize(new { conversations = store.Conversations(), runs = store.Runs() });
         var previews = new RunConfiguration { Mode = "live", PromptBlocks = Selection(31) };
         await CheckPreview(client, technology, ApiJson.Serialize(previews), previews, token);
+        // The fixture backend is LIVE-ready, so the missing per-run budget is what blocks execution.
         await CheckError(client, $"/api/conversations/{conversation.Id}/turns",
             ApiJson.Serialize(new SubmitTurnRequest { Message = "This is not authorized.", Configuration = previews }),
-            403, "live_disabled", token);
+            422, "budget_required", token);
         Check(before == ApiJson.Serialize(new { conversations = store.Conversations(), runs = store.Runs() }),
             "Previewing LIVE instructions never authorizes a run or changes persisted conversations/runs.");
         Check(store.Runs().Count == 3 && store.GetConversation(conversation.Id).Messages.Count == 3

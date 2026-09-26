@@ -3,29 +3,31 @@
 `services.AddObservatoryAgents(configuration)` registers `IAgentRuntime`,
 `ShopServiceClient` and the A2A transport. API callers do **not** register local
 `IShopData`: business calls go to three separately hosted services.
-Each AgentHost instance selects one `Agents:Role` and supplies its local Core
-`IShopData` only to that role's business operations and remote specialist.
-The instances share frozen fixtures/snapshot, not independent shop databases.
+The shop API processes own the business operations and shared synthetic state.
+The A2A specialist processes own model execution and call those shop APIs over
+HTTP; they do not host local `IShopData`.
 
 ## Three real framework paths
 
 All modes use Microsoft Agent Framework `ChatClientAgent` and its actual function-invocation loop:
 
 - **inline:** one router, with domain procedures in its inline prompt.
-  `ShopFunctions` exposes ordinary function tools; `ShopServiceClient` calls
-  Catalog, Orders and Returns over real business HTTP. No in-process
-  specialist agents or agent-as-tool delegation are created.
+  `InlineAgent` in `src\Inline\Observatory.Inline` owns its instructions and
+  its own tool copy; `ShopServiceClient` calls Catalog, Orders and Returns over
+  real business HTTP. No in-process specialist agents or agent-as-tool
+  delegation are created.
 - **skills:** the same single router and business HTTP tools. Its native
-  `AgentSkillsProviderBuilder`/`AgentSkillsProvider` discovers three trusted
-  bundled service packages. Actual `load_skill` calls load `SKILL.md`;
-  `read_skill_resource` progressively reads the Returns checklist.
-  Loading instructions does not delegate to another agent.
+  `AgentSkillsProviderBuilder`/`AgentSkillsProvider` uses
+  `RemoteSkillsSource` to read indexes from `skill-catalog`, `skill-orders`
+  and `skill-returns` through Aspire service discovery. Actual `load_skill`
+  calls download `SKILL.md`; `read_skill_resource` progressively reads the
+  Returns checklist. Loading instructions does not delegate to another agent.
 - **a2a:** the router's delegation tools use the official **A2A SDK JSON-RPC**
-  client, selecting a distinct origin for each specialist. Three
-  role-configured AgentHost instances create their own real framework agents,
-  model clients and tool loops per invocation. Remote tools use local Core
-  operations within the owning service. A2A uses inline prompts and does
-  **not** attach a native skill provider. It is not custom REST labeled A2A.
+  client, selecting a distinct origin for each specialist. Three separate
+  `agent-*` processes create their own real framework agents, model clients
+  and tool loops per invocation. Specialist tools call the shop APIs through
+  that agent's own `Tools` folder. A2A uses inline prompts and
+  does **not** attach a native skill provider. It is not custom REST labeled A2A.
 
 `AgentNames.ForTechnology` and API `capabilities.agentNames` distinguish
 `["router"]` for Inline/Skills from
@@ -33,26 +35,29 @@ All modes use Microsoft Agent Framework `ChatClientAgent` and its actual functio
 in the ledger. The A2A comparison therefore changes agent execution as well
 as transport; it is not a network-only benchmark at equal inference counts.
 
-### Native skill packages
+### Native remote skills
 
-The router's provider reads local **bundled, trusted and versioned copies**
-of the same packages exposed by the three services:
+The router's provider reads only the trusted remote indexes up front and then
+loads Markdown lazily from the three skill sites:
 
-| Package | Service document |
+| Skill site | Published skill document |
 | --- | --- |
-| `shop-catalog` | Catalog: `/skills/shop-catalog/SKILL.md` |
-| `shop-orders` | Orders: `/skills/shop-orders/SKILL.md` |
-| `shop-returns` | Returns: `/skills/shop-returns/SKILL.md` |
-| Returns resource | Returns: `/skills/shop-returns/references/decision-checklist.md` |
+| `skill-catalog` | `catalog`: `/skills/catalog/SKILL.md` |
+| `skill-orders` | `orders`: `/skills/orders/SKILL.md` |
+| `skill-returns` | `returns`: `/skills/returns/SKILL.md` |
+| Returns resource | `/skills/returns/references/decision-checklist.md` |
 
-There is no `shop-router` skill. The source directory defaults to
-`AppContext.BaseDirectory\Skills` (`Agents:SkillsDirectory` is an operator
-override for trusted files). The provider does not download Markdown during
-the run. Script discovery/execution is disabled; only Markdown resources are
-allowed. Procedure text is not an authoritative catalog/order/policy source.
-Descriptions, procedures, examples and the Returns reference checklist in
-these application-owned Markdown packages are in Italian. Skill names,
-resource paths, tool identifiers and JSON keys keep their stable wire values.
+There are no `shop-*` or `shop-router` skills. `RemoteSkillsSource` trusts only
+the fixed `skill-*` hosts, emits `protocol.request`/`protocol.response` HTTP
+events, accepts only `text/markdown` bodies for skill content and fails closed
+with `skill_unavailable` on HTTP, content-type or connectivity errors. Script
+discovery/execution is disabled by design because arbitrary paths are never
+read: resources must be listed by the index first. Procedure text is not an
+authoritative catalog/order/policy source. Descriptions, procedures, examples
+and the Returns reference checklist in these application-owned Markdown
+packages are in Italian. Skill names, resource paths, tool identifiers and JSON
+keys keep their stable wire values. Each `SKILL.md` body is the corresponding
+specialist agent procedure verbatim; this is covered by `Observatory.Skills.Tests`.
 `AgentCard.Skills` is A2A capability metadata, not these Markdown documents
 or a request to load the native provider.
 
@@ -63,18 +68,19 @@ alternate model or provider fallback.
 
 ### Service origins and access for processes or containers
 
-The API/runtime routes business HTTP and A2A by role:
+The API/runtime routes business HTTP by role:
 
 | Configuration | Standalone default | Aspire resource |
 | --- | --- | --- |
-| `Agents:Endpoints:catalog` | `http://localhost:5205` | `catalog-service` |
-| `Agents:Endpoints:orders` | `http://localhost:5206` | `orders-service` |
-| `Agents:Endpoints:returns` | `http://localhost:5207` | `returns-service` |
+| `Agents:Endpoints:catalog` | `http://localhost:5301` | `shop-catalog` |
+| `Agents:Endpoints:orders` | `http://localhost:5302` | `shop-orders` |
+| `Agents:Endpoints:returns` | `http://localhost:5303` | `shop-returns` |
 
 Aspire supplies dynamic endpoints. These are origins without credentials,
 paths, query or fragment; the former `Agents:BaseUrl` is not used.
-Each service maps only its role's API, `/a2a/{role}`, agent card and skill.
-All demo APIs depend on all three services, not just the A2A demo.
+Each shop service maps only its business API. A2A specialists and skill sites
+are separate processes with their own origins. All demo APIs depend on all
+three shop services, not just the A2A demo.
 
 Default: `Agents:AllowRemote=false`, so only loopback endpoints/peers are allowed.
 
@@ -103,8 +109,10 @@ untrusted networks. Do not capture credential headers in proxies/custom logs.
 
 ### Business HTTP, metadata and shared state
 
-`ShopFunctions` exposes the same domain tool names in Inline/Skills that the
-owning specialist uses locally in A2A:
+`ShopToolCall` contains the shared plumbing for protocol events, domain
+evidence and fail-closed HTTP behavior. The actual tool definitions are
+intentionally duplicated per path: Inline, Skills and each A2A specialist own
+their local `Tools` copy while keeping the same public tool names:
 
 | Tool | Business HTTP endpoint for Inline/Skills |
 | --- | --- |
@@ -157,8 +165,8 @@ The Italian instructions favor concise, natural replies. Follow-ups such as
 from earlier turns, replacing only the color. An explicit new search drops
 irrelevant old constraints. Prices, stock and counts must still be refreshed
 through authorized tools, not inferred from earlier answers or page length.
-Inline embeds the service procedure; Skills loads `shop-catalog` and uses the
-same business HTTP; the A2A router passes the relevant filters to
+Inline embeds the service procedure; Skills loads `catalog` from
+`skill-catalog` and uses the same business HTTP; the A2A router passes the relevant filters to
 `catalog_agent`, which owns the Catalog tools.
 
 ## History, instructions and actions
@@ -222,7 +230,7 @@ block contradicts response-style requirements only. Neither can remove the
 mandatory grounding, trusted customer/consent or server-side domain checks.
 The examples use abstract placeholders, not expected scenario answers.
 Selections apply to the router in Inline/Skills and each invoked A2A role;
-they do not rewrite service skill packages. The selected prompt blocks are
+they do not rewrite the `SKILL.md` documents published by skill sites. The selected prompt blocks are
 included in the next LIVE turn and recorded with that run.
 
 Prompt self-tests compare previews and captured instructions against the
@@ -258,7 +266,7 @@ The provider is `AzureOpenAIClient.GetChatClient(deployment).AsIChatClient()` us
 |---|---|
 | `Demo:AllowLive` | Explicit `true` before live execution on the API and any service doing remote inference; Aspire propagates the backend setting, default `false` |
 | `AzureOpenAI:Endpoint` | HTTPS Azure OpenAI endpoint |
-| `AzureOpenAI:ApiKey` | Optional; omission uses noninteractive `DefaultAzureCredential`/Entra |
+| `AzureOpenAI:ApiKey` | Optional; omission uses noninteractive `DefaultAzureCredential`/Entra. In Development, Managed Identity is excluded to avoid the Azure IMDS endpoint on a local PC. |
 | `Models:{id}:Deployment` | Explicit operator-provided deployment |
 | `Models:{id}:Capabilities:FunctionCalling` | Explicit `true` **after** verifying the deployment |
 | `Models:{id}:Capabilities:MaxOutputTokens` | Explicit `true` **after** verifying the deployment |
@@ -334,7 +342,7 @@ of MCP. It does **not** mean in-process shop data: Inline/Skills business
 HTTP and A2A's remote delegation are real. **MCP is unsupported** and produces
 an explicit `unsupported_transport` error.
 
-See [AgentHost README](..\Observatory.AgentHost\README.md) for role-specific
+See [SpecialistHost README](..\Observatory.SpecialistHost\README.md) for role-specific
 endpoints and executable verification commands. No prior suite counts or
 four-agent-per-mode results should be presented as validation of this new
 architecture; verify actual router-only versus remote-agent behavior.

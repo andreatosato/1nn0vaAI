@@ -44,6 +44,9 @@ public sealed class NativeTelemetryTests
             measurements.Add((instrument.Meter.Name, instrument.Name)));
         meters.SetMeasurementEventCallback<long>((instrument, _, _, _) =>
             measurements.Add((instrument.Meter.Name, instrument.Name)));
+        // gen_ai.client.token.usage is an int histogram.
+        meters.SetMeasurementEventCallback<int>((instrument, _, _, _) =>
+            measurements.Add((instrument.Meter.Name, instrument.Name)));
         meters.Start();
 
         await RunOfflineAgent();

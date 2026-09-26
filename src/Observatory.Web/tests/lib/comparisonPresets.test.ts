@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { comparisonScenarios, configurationFor, liveConfigurationFor } from '../test/fixtures';
-import { comparisonPresets, comparisonSettings, prepareComparison } from './comparisonPresets';
+import { comparisonScenarios, configurationFor, liveConfigurationFor } from '../support/fixtures';
+import { comparisonPresets, comparisonSettings, prepareComparison } from '../../src/lib/comparisonPresets';
 
 describe('preset per confronti controllati', () => {
   it.each(['inline', 'skills', 'a2a'] as const)('%s prepara tutte le varianti con configurazioni complete e messaggi del backend', (technology) => {

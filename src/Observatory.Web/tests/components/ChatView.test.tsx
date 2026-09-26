@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import type { RunConfiguration, ScenarioDefinition } from '../contracts';
-import type { DemoState } from '../hooks/useDemo';
-import { configuration, conversation, scenario, settings } from '../test/fixtures';
-import { ChatView } from './ChatView';
+import type { RunConfiguration, ScenarioDefinition } from '../../src/contracts';
+import type { DemoState } from '../../src/hooks/useDemo';
+import { configuration, conversation, scenario, settings } from '../support/fixtures';
+import { ChatView } from '../../src/components/ChatView';
 
 const main: ScenarioDefinition = { ...scenario, split: 'development' };
 const standalone: ScenarioDefinition = {
@@ -41,11 +41,49 @@ function Harness({ demo }: { demo: DemoState }) {
 
 async function openGuide() {
   const user = userEvent.setup();
+  await user.click(screen.getByText('Opzioni chat'));
   await user.click(screen.getByText('Percorso guidato · sei turni'));
   return user;
 }
 
 describe('domande DEVELOPMENT nella chat', () => {
+  it('mette la risposta davanti ai dettagli tecnici e mantiene il consenso LIVE visibile', () => {
+    render(<Harness demo={makeDemo()} />);
+    expect(screen.getByText('Risposta già registrata')).toBeVisible();
+    expect(screen.getByRole('textbox', { name: 'Messaggio al Router' })).toBeVisible();
+    expect(screen.getByRole('checkbox', { name: /Autorizzo questo invio LIVE/ })).toBeVisible();
+    expect(screen.getByText('Impostazioni del prossimo messaggio')).not.toBeVisible();
+    expect(screen.getByLabelText('Conversazione')).not.toBeVisible();
+  });
+
+  it('porta alla nuova risposta senza spostare chi sta leggendo lo storico', async () => {
+    const user = userEvent.setup();
+    const demo = makeDemo();
+    const { rerender } = render(<Harness demo={demo} />);
+    const log = screen.getByRole('log');
+    Object.defineProperties(log, {
+      scrollHeight: { configurable: true, value: 1000 },
+      clientHeight: { configurable: true, value: 200 },
+    });
+    const assistant = screen.getByText('Risposta già registrata').closest('li')!;
+    Object.defineProperty(assistant, 'offsetTop', { configurable: true, value: 750 });
+    const withAnswer = (answer: string): DemoState => ({
+      ...demo, monitor: { ...demo.monitor, answer },
+    });
+    rerender(<Harness demo={withAnswer('Prima risposta via SSE')} />);
+    const latest = screen.getByText('Prima risposta via SSE').closest('li')!;
+    Object.defineProperty(latest, 'offsetTop', { configurable: true, value: 850 });
+    rerender(<Harness demo={withAnswer('Risposta aggiornata via SSE')} />);
+    expect(log.scrollTop).toBe(800);
+    log.scrollTop = 100;
+    fireEvent.scroll(log);
+    rerender(<Harness demo={withAnswer('Risposta finale via SSE')} />);
+    expect(log.scrollTop).toBe(100);
+    await user.click(screen.getByRole('button', { name: "Vai all'ultima risposta" }));
+    expect(log.scrollTop).toBe(800);
+    expect(screen.queryByRole('button', { name: "Vai all'ultima risposta" })).not.toBeInTheDocument();
+  });
+
   it('preferisce i sei turni e mostra aspettative, senza esporre holdout o avviare esecuzioni', async () => {
     const demo = makeDemo();
     render(<Harness demo={demo} />);

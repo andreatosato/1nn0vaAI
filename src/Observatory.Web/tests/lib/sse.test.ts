@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
-import { readSseFrames } from './sse';
-import type { SseFrame } from './sse';
+import { readSseFrames } from '../../src/lib/sse';
+import type { SseFrame } from '../../src/lib/sse';
 
 function stream(text: string, chunkSize = 1): ReadableStream<Uint8Array> {
   const bytes = new TextEncoder().encode(text);

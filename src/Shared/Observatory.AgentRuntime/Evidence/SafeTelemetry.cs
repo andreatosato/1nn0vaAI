@@ -2,15 +2,14 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.AI;
 
-namespace Observatory.Agents;
+namespace Observatory.AgentRuntime;
 
 // Sanitizes persisted Inspector evidence, not OpenTelemetry payloads.
-internal static partial class SafeTelemetry
+public static partial class SafeTelemetry
 {
     private static readonly HashSet<string> ExcludedProperties = new(StringComparer.OrdinalIgnoreCase)
     {
         "apiKey", "api-key", "authorization", "password", "secret", "connectionString",
-        "sharedSecret", "Agents:SharedSecret", "Agents__SharedSecret", AgentTransportAccess.HeaderName,
         "thumbnail", "images", "image", "imageUrl", "image_url", "base64", "rawRepresentation"
     };
 
@@ -47,6 +46,6 @@ internal static partial class SafeTelemetry
         _ => null
     };
 
-    [GeneratedRegex("""(?i)(?:Bearer\s+[a-z0-9._~+/\-=]+|(?:api[-_]?key|password|secret|authorization|sharedSecret|X-Observatory-A2A-Key)["']?\s*[=:]\s*["']?[^\s,;"'}]+|sk-[a-z0-9_-]{12,}|data:image/[a-z0-9.+-]+;base64,[a-z0-9+/=]+)""")]
+    [GeneratedRegex("""(?i)(?:Bearer\s+[a-z0-9._~+/\-=]+|(?:api[-_]?key|password|secret|authorization)["']?\s*[=:]\s*["']?[^\s,;"'}]+|sk-[a-z0-9_-]{12,}|data:image/[a-z0-9.+-]+;base64,[a-z0-9+/=]+)""")]
     private static partial Regex CredentialPattern();
 }

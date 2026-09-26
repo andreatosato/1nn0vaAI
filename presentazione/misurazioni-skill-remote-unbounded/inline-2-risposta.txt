@@ -1,0 +1,5 @@
+Ecco quanto ho verificato per ORD-1042 e una proposta sotto i 40 USD:
+
+- Consegna: 5 settembre 2026. Prodotto: Blue & Black Check Shirt (outlet). Stato ordine: consegnato.
+- Reso per difetto al primo utilizzo: secondo le policy correnti, i difetti sono restituibili entro 60 giorni dalla consegna anche se l’articolo è outlet (regola “Eccezione difetto”). Essendo passati 18 giorni, la richiesta rientra nella finestra. L’importo rimborsabile non può superare quanto effettivamente pagato: 19.99 USD. Nota: il controllo automatico di ammissibilità ha avuto un errore tecnico; se vuoi, posso riprovare subito la verifica.
+- Camicia consigliata sotto i 40 USD (disponibile): Men Check Shirt — ID 87 — 27.99 USD.

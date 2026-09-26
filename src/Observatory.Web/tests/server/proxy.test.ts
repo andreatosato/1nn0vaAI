@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { createApiProxy } from './proxy';
+import { createApiProxy } from '../../server/proxy';
 
 describe('proxy server-only', () => {
   const environment = {

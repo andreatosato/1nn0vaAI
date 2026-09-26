@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Observatory.Core;
 
-namespace Observatory.Agents;
+namespace Observatory.AgentRuntime;
 
 public static class ProviderUsageReader
 {

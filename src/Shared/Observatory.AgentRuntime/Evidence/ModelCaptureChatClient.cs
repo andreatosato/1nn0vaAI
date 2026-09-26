@@ -1,11 +1,12 @@
 using Microsoft.Extensions.AI;
 using Observatory.Core;
+using Observatory.ServiceDefaults;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
-namespace Observatory.Agents;
+namespace Observatory.AgentRuntime;
 
-// Application evidence beneath the native chat span: no custom spans, meters or exporters.
+// Application evidence beneath the native chat span: the Inspector ledger, plus cost on the native span.
 internal sealed class ModelCaptureChatClient(IChatClient inner, RunState state, string agent, ModelRegistration registration)
     : DelegatingChatClient(inner)
 {
@@ -83,6 +84,7 @@ internal sealed class ModelCaptureChatClient(IChatClient inner, RunState state, 
             };
             record = ProviderUsageReader.Apply(record, usageCapture.Usage);
             record = TokenCostCalculator.Price(record, registration.Model.Pricing);
+            AiTelemetryExtensions.RecordModelCall(agent, registration.Model.Id, record.CachedInputTokens, record.EstimatedCostUsd);
             await state.EmitAsync("model.completed", agent, "Chiamata provider; cattura logica, non wire.", record).ConfigureAwait(false);
         }
     }

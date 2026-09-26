@@ -3,10 +3,10 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Http.Features;
-using Observatory.Agents;
+using Observatory.AgentRuntime;
 using Observatory.Core;
 
-namespace Observatory.Api;
+namespace Observatory.RouterHost;
 
 public static class ApiEndpoints
 {
@@ -19,11 +19,12 @@ public static class ApiEndpoints
             node["promptBlocks"] = JsonSerializer.SerializeToNode(PromptLaboratory.Blocks, ApiJson.Options);
             return Results.Json(node, ApiJson.Options);
         });
-        app.MapPost("/api/prompts/preview", async (HttpRequest http, ObservatorySettings settings) =>
+        app.MapPost("/api/prompts/preview", async (HttpRequest http, ObservatorySettings settings, IArchitectureRouter router,
+            CancellationToken token) =>
         {
             var (configuration, _) = await ReadBody<RunConfiguration>(http);
             settings.ValidatePromptPreview(configuration);
-            return TypedResults.Ok(PromptLaboratory.Preview(settings.Technology, configuration));
+            return TypedResults.Ok(PromptLaboratory.Preview(settings.Technology, await router.PreviewAsync(configuration, token)));
         })
             .WithName("PreviewPromptInstructions")
             .WithSummary("Preview configured instructions without invoking models or tools.")

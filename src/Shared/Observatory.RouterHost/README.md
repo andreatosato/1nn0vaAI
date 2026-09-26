@@ -1,10 +1,18 @@
-# Observatory API
+# Observatory.RouterHost
 
-The same executable serves `inline`, `skills`, or `a2a` (`Demo:Technology`).
-All three API instances depend on `catalog-service`, `orders-service` and
-`returns-service`: three role-configured instances of the same AgentHost executable.
-`services.AddObservatoryAgents(configuration)` registers the runtime and HTTP clients.
-The API does **not** register local `IShopData` or read the service-domain directory.
+Hosting shared by the three routers, `router-inline`, `router-skills` and
+`router-a2a`: conversations, runs, SSE, exports, SQLite evidence and the run
+worker. It knows **no** architecture: each router project declares its own
+`DemoArchitecture` (technology, agents with a model, topology) and implements
+`IArchitectureRouter` (instructions, tools, execution, prompt preview).
+
+```csharp
+var builder = RouterHostApplication.CreateBuilder<InlineRouter>(args, InlineRouter.Architecture);
+var app = await RouterHostApplication.BuildAsync(builder);
+app.Run();
+```
+
+The router host does **not** register local `IShopData` or read the shop state.
 
 Before listening, [RemoteShopCatalog](RemoteShopCatalog.cs) calls
 **`GET /catalog` on Catalog** and loads the
@@ -31,18 +39,11 @@ or local fallback. Other customers are visible **only for teaching**; chat order
 authorization and explicit confirmation guards remain unchanged. Do not expose
 this synthetic cross-customer inspector as a production customer-data API.
 
-Targeted real-HTTP regression checks (no model/network-cloud access):
-
-```powershell
-dotnet build .\src\Observatory.Api\Checks\Observatory.Api.Checks.csproj
-dotnet .\src\Observatory.Api\Checks\bin\Debug\net10.0\Observatory.Api.Checks.dll --demo-data
-```
-
-The services, not these APIs, initialize the bundled frozen fixtures/snapshot:
+The business APIs, not the routers, initialize the bundled frozen fixtures/snapshot:
 missing catalog files are copied atomically, existing snapshot/domain state is
 preserved and invalid snapshots fail startup. Aspire shares `.appdata\catalog`
-and `.appdata\domain` only among services; only Orders writes synthetic drafts.
-There are no independent shop databases per service. Each API instead owns a
+and `.appdata\domain` only among the business APIs; only Orders writes synthetic drafts.
+There are no independent shop databases per service. Each router instead owns a
 separate SQLite evidence file.
 
 Initialization is offline with respect to external services: the internal HTTP
@@ -58,17 +59,12 @@ Use configuration/environment variables (`:` becomes `__`). Do not put credentia
 
 | Key | Meaning/default |
 | --- | --- |
-| `Demo:Technology` | `inline`, `skills`, `a2a`; default `inline` |
 | `Demo:AllowLive` | `false`; authoritative API and runtime opt-in. Explicit `false` overrides legacy root `AllowLive=true` |
 | `Demo:DefaultMode` | `live`; the API rejects any other execution mode |
 | `AllowLive` | Legacy alias used only if `Demo:AllowLive` is absent |
 | `Demo:MaxApprovedBudgetUsd` | Maximum accepted **per-run** explicit budget, default `10` |
 | `Storage:Path` | Unique SQLite file per API resource; default `data\observatory-{technology}.sqlite3` under output |
-| `Agents:Endpoints:catalog` | Catalog service origin; standalone default `http://localhost:5205` |
-| `Agents:Endpoints:orders` | Orders service origin; standalone default `http://localhost:5206` |
-| `Agents:Endpoints:returns` | Returns service origin; standalone default `http://localhost:5207` |
-| `Agents:AllowRemote` | `false` by default; Aspire enables authenticated remote access in container mode |
-| `Agents:SharedSecret` | Backend-only secret shared with all services when remote access is enabled |
+| Service discovery | `http://shop-catalog`, `http://shop-orders`, `http://shop-returns` and, for A2A, `http://agent-{role}` are resolved by Aspire from `WithReference`; nothing to configure |
 | `Processing:Workers` | Concurrent conversations, default `2` |
 | `Processing:QueueCapacity` | Bounded scheduler notifications, default `64`; durable jobs remain in SQLite |
 | `Processing:MaxPendingRuns` | Durable queue admission limit, default `256` |
@@ -88,8 +84,8 @@ Use configuration/environment variables (`:` becomes `__`). Do not put credentia
 
 Profile IDs: `gpt5`, `gpt6-astra`, `gpt6-sol`, `gpt6-luna`. Pricing keys also accept a
 nested `Pricing` section; flat keys take precedence. Unconfigured prices remain null.
-AppHost forwards the local `Demo:DefaultMode`, `Demo:AllowLive`,
-`Demo:MaxApprovedBudgetUsd`, endpoint and model settings to every backend.
+AppHost forwards `Demo:AllowLive`, `Demo:AllowUnboundedExecution`,
+`Demo:MaxApprovedBudgetUsd`, endpoint and model settings to every router and agent.
 Keep local provider configuration in AppHost user-secrets. The advertised default
 is a UI preference, not consent: each LIVE request still
 requires explicit mode and positive approved per-run budget. No startup inference
@@ -97,6 +93,14 @@ is performed, no draft consent is inferred, and requests must explicitly select 
 Without an API key the existing provider uses `DefaultAzureCredential` with
 interactive browser authentication disabled. Use already authenticated Entra
 credentials; process-mode Aspire can use the host credential chain.
+In the `Development` environment, the shared provider excludes Managed Identity:
+the Azure metadata endpoint `169.254.169.254:80` is not available on a local PC.
+Azure CLI and Visual Studio credentials remain available; sign in with the
+intended account before running the demo. Staging/Production retain Managed
+Identity support. API-key authentication is unchanged. Restart the routers and
+specialist agents after rebuilding to apply authentication changes.
+An IMDS socket exception shown by the debugger can be an intermediate credential
+probe rather than a failed model call: check the final run status and error.
 
 For local verification, first read `/api/products` and choose an existing product
 (the bundled catalog includes product 83, not product 1). Use a fresh conversation
@@ -161,8 +165,8 @@ rates, provenance, explicit capabilities, and nonreasoning tools are configured.
 
 ### Explicit unbounded measurements
 
-Set `Demo:AllowUnboundedExecution=true` on AppHost (propagated to all APIs and
-specialists) and send `configuration.unboundedExecution=true` with
+Set `Demo:AllowUnboundedExecution=true` on AppHost (propagated to all routers and
+specialist agents) and send `configuration.unboundedExecution=true` with
 `approvedBudgetUsd=null` for an explicitly authorized measurement. This opt-in
 removes the application spending/call caps and run timeout, omits the provider
 output-token cap, and removes the A2A invocation HTTP timeout. The legacy numeric
@@ -176,8 +180,8 @@ pricing, usage capture, explicit LIVE consent, cancellation, ownership and actio
 confirmation remain mandatory. Missing usage still stops execution; no fake
 zero-cost fallback is introduced. Never enable this on a public anonymous service.
 
-Offline verification (new database path required):
-`dotnet run --project src\Observatory.Api -- --self-test --unbounded <new-database-path>`
+Offline verification: `dotnet test tests\Observatory.RouterHost.Tests --filter Unbounded`
+and `dotnet test tests\Observatory.Agents.Tests --filter AgentRunnerTests`.
 
 `GET /api/config` returns frozen `DemoConfiguration` fields plus a `capabilities` object
 and a `promptBlocks` catalog (`id`, `label`, `description`).
@@ -192,43 +196,33 @@ The ledger still records only actual model calls, not every advertised agent.
 `ToolTransport=direct` means ordinary framework function invocation rather than
 MCP, **not** business logic in the API process.
 
-Aspire supplies three dynamic service origins and waits for all services in
-both process/container modes. Origins must not contain `/api`, `/a2a`,
-credentials, query or fragment. `Agents:BaseUrl` is no longer used.
-Standalone API launch profiles use the three localhost defaults above.
-API instances keep separate `.appdata\{technology}\observatory.sqlite` files;
-containers mount only their own `/state/{technology}` evidence directory.
+Routers find the business APIs and the agents through Aspire service discovery.
+Router instances keep separate `.appdata\{technology}\observatory.sqlite` files.
 
 ## Runtime and backend service boundary
 
-Inline has one router with inline procedures and ordinary HTTP business tools.
-Skills has the same router/tools plus the native provider reading trusted
-bundled copies of `shop-catalog`, `shop-orders`, `shop-returns`, versioned
-with the same packages exposed by the services. There is no `shop-router`,
-dynamic skill download, script execution or delegation to specialist agents.
+Inline has one router with inline procedures and the shop HTTP tools.
+Skills has the same router and tools plus the native provider reading the
+skill packages published by each business API and copied into its build.
+There is no `shop-router` skill, dynamic download, script or delegation.
 
-A2A has a local router delegating to each role's actual remote agent/card at
-`/a2a/{role}` on its own origin. Specialists have their own model/tool loops
-and use local Core operations in the service. No native skill provider is
-loaded in A2A; `AgentCard.Skills` is protocol capability metadata.
+A2A has a router whose tools delegate to the three specialist agents
+(`agent-catalog`, `agent-orders`, `agent-returns`) over the official A2A SDK.
+Each specialist runs in its own process with its own model, instructions and
+the HTTP tools of its own business API. Specialist evidence (model calls,
+tokens, cost, tools) returns in the A2A reply metadata and is added to the
+root run's ledger; the router's model only receives the answer text.
 
-Business tools call the [role-scoped service APIs](..\Observatory.AgentHost\README.md):
-Catalog `/products`, `/catalog/query` and `/catalog/facets`,
-Orders `/orders` and `/return-drafts`, Returns `/policies`
-and `/return-assessments`. The full `/catalog` snapshot is reserved for
-startup metadata/UI, never passed as an AI tool result.
+Business tools call Catalog `/products`, `/catalog/query`, `/catalog/facets`,
+Orders `/orders` and `/return-drafts`, Returns `/policies` and
+`/return-assessments`. The full `/catalog` snapshot is reserved for startup
+metadata/UI, never passed as an AI tool result.
 
 The backend derives `X-Observatory-Customer-Id` from trusted customer scope and
 sets `X-Observatory-Confirm-Action=true` only for explicitly authorized draft
-creation. These are not forwarded UI service headers or model tool arguments;
-chat text cannot grant consent. The domain service rechecks scope and eligibility.
-In A2A the trusted invocation metadata carries customer/consent context.
-
-When remote access is enabled, the HTTP clients send `X-Observatory-A2A-Key`
-for all service non-health endpoints: business APIs, skills, discovery, A2A,
-telemetry and index. The generated key is backend-only and is never part of
-UI configuration, model context or exported evidence. All local calls remain
-real HTTP independently of the model provider.
+creation. These are not forwarded UI headers or model tool arguments; chat text
+cannot grant consent. The business API rechecks scope and eligibility. In A2A
+the trusted invocation metadata carries customer and consent context.
 
 ## HTTP and evidence
 
@@ -248,10 +242,10 @@ Selected blocks are part of the persisted run snapshot and A2A configuration.
 All-disabled selections retain pre-laboratory idempotency hashes; enabling a
 block changes request identity and requires a new idempotency key.
 They supplement, never replace, mandatory factual/authorization instructions.
-Previewed instructions come from the execution compositor. Runtime history,
+Previewed instructions come from the router (and, in A2A, from each specialist via `POST /prompts/preview`). Runtime history,
 tools, native skill context and results are not available until execution;
 the Inspector remains authoritative for actual inference requests.
-Manual examples are in [Observatory.Api.http](Observatory.Api.http).
+Manual examples are in [Observatory.Router.Inline.http](../../Routers/Observatory.Router.Inline/Observatory.Router.Inline.http).
 
 Model, prompt profile, optional blocks and history strategy are frozen when
 a turn is accepted. Updating controls or generating a preview does not mutate
@@ -312,32 +306,12 @@ Results are persisted and accessible at `GET /api/experiments/{id}`.
 
 ## Verification
 
-The commands below are verification entry points, not a claim that the new
-three-service architecture has passed them. Rebuild before running old outputs.
-
-Build with cached packages: `dotnet build src\Observatory.Api --ignore-failed-sources`.
-Run the local no-network self-check with a new explicit project-local SQLite path:
-
 ```powershell
-dotnet run --no-build --project src\Observatory.Api -- --self-test src\Observatory.Api\.checks\check.sqlite3
+dotnet test tests\Observatory.RouterHost.Tests
 ```
 
-The self-check uses test-only fixtures; production DI always uses Observatory.Agents
-and the remote Catalog metadata path. Fixture results are not proof of live service routing.
-Budget/cancellation drain checks simulate pre-captured provider batches locally; no inference SDK or network is invoked.
-It can also build independently of the agent runtime:
-
-```powershell
-dotnet run --project src\Observatory.Api\Checks -- src\Observatory.Api\.checks\independent.sqlite3
-```
-
-The same test executable has an explicit `--serve-fixture` mode for local HTTP/Runner tests
-while other projects are being developed. It requires `--Storage:Path`, always forces
-`Demo:AllowLive=false`, and registers a clearly labeled test fixture instead of production agents.
-Do not use fixture results as validation of actual agent/model behavior.
-
-For actual HTTP and SSE validation use Observatory.Runner `smoke`
-with all three services running. Verify router-only Inline/Skills, actual
-remote specialists for A2A, Catalog-dependent startup, role-specific origins,
-backend authorization and separate SQLite evidence. Previous four-agent
-results for every mode must not be reused as evidence for this architecture.
+The tests build the real router host composition in memory with a probe router
+and a stub Catalog API: architecture advertised by `/api/config`, prompt
+preview served by the router, validation and unbounded accounting. No model,
+network or cloud access is used. Two legacy harness checks predate LIVE-only
+execution and are skipped with their reason; see the root README.

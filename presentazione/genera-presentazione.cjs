@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('node:fs');
 const assert = require('node:assert/strict');
 
-const measurementsDirectory = path.resolve(__dirname, process.argv[2] || 'misurazioni-2026-09-25-unbounded');
+const measurementsDirectory = path.resolve(__dirname, process.argv[2] || 'misurazioni-skill-remote-unbounded');
 const readJson = file => JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
 const measurements = readJson(path.join(measurementsDirectory, 'risultati.json'));
 assert.equal(measurements.rows.length, 6);
@@ -65,6 +65,38 @@ const formatNumber = (value, digits = 0) => value == null ? 'N/D' : value.toLoca
 const runReferences = measuredRows.map(r => `${r.architecture} ${r.repetition}: ${r.runId} (${r.status})`).join('\n');
 const architectureLabel = architecture => ({inline:'Inline',skills:'Skills',a2a:'A2A'})[architecture];
 const currentSummary = `${measuredRows.filter(r => r.status === 'completed').length}/6 completed · ${measuredRows.filter(r => r.answer).length}/6 risposte · ${measuredRows.reduce((total, r) => total + r.toolFailures, 0)} errori tool`;
+const measurementDate = new Date(measurements.experiment.startedAt);
+const measurementDay = measurementDate.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' });
+
+// Tools and agent descriptions exactly as recorded in the first model call of each architecture.
+const firstRequest = architecture => evidence[measuredRows.findIndex(row => row.architecture === architecture)].ledger.calls[0].request;
+const describeParameters = tool => Object.keys(tool.parameters?.properties ?? {})
+  .map(name => (tool.parameters.required ?? []).includes(name) ? name : `${name}?`).join(', ');
+const recordedTools = [...new Map(['inline', 'skills', 'a2a'].flatMap(architecture => firstRequest(architecture).tools)
+  .map(tool => [tool.name, { name: tool.name, description: tool.description, parameters: describeParameters(tool) }])).values()];
+const toolApis = { search_products: 'catalog', query_catalog: 'catalog', get_catalog_facets: 'catalog', get_product: 'catalog',
+  get_order: 'orders', create_return_draft: 'orders', assess_return: 'returns', get_policies: 'returns' };
+const domainTools = firstRequest('inline').tools.map(tool => ({
+  name: tool.name, description: tool.description, parameters: describeParameters(tool), api: `shop-${toolApis[tool.name]}`,
+}));
+assert.deepEqual(domainTools.map(tool => tool.name).sort(), Object.keys(toolApis).sort());
+const firstSentence = text => (text.match(/^.*?\.(?=\s|$)/)?.[0] ?? text);
+const toolSchemaCharacters = Object.fromEntries(['inline', 'skills', 'a2a'].map(architecture =>
+  [architecture, JSON.stringify(firstRequest(architecture).tools).length]));
+const failedAssessments = measuredRows.flatMap(row => row.assessments).filter(attempt => attempt.status === 'failed');
+const assessmentReason = failedAssessments[0]?.arguments?.reason ?? 'N/D';
+const assessmentError = failedAssessments[0]?.error ?? 'N/D';
+const specialists = ['catalog', 'orders', 'returns'].map(name => {
+  const markdown = fs.readFileSync(path.join(__dirname, '..', 'src', 'Skills', `Observatory.Skill.${name[0].toUpperCase()}${name.slice(1)}`, 'skills', name, 'SKILL.md'), 'utf8').replace(/\r\n/g, '\n');
+  const procedure = markdown.replace(/^---\n[\s\S]*?\n---\n/, '').replace(/^\s*#.*\n/, '').trim();
+  const lines = procedure.split('\n');
+  return {
+    name,
+    a2a: firstRequest('a2a').tools.find(tool => tool.name === `${name}_agent`).description,
+    skill: markdown.match(/^description:\s*(.+)$/m)[1].trim(),
+    procedure, procedureCharacters: procedure.length, procedureLines: lines.length, procedureFirstLine: lines[0].trim(),
+  };
+});
 let totalMinutes = 0;
 
 const pptx = new pptxgen();
@@ -100,6 +132,17 @@ const C = {
   bluePale: 'EAF3F7',
 };
 const logo = path.join(__dirname, '..', 'src', 'Observatory.Web', 'public', 'observatory.svg');
+const stocchiPhoto = path.join(__dirname, 'assets', 'tommaso-stocchi.png');
+assert.ok(fs.existsSync(stocchiPhoto), 'Missing credited author photo: assets/tommaso-stocchi.png');
+const sources = {
+  reflection: 'https://chatgpt.com/s/t_6ab6cd6b438481919846351e496ee155',
+  distributedSkills: 'https://devblogs.microsoft.com/agent-framework/from-specialist-agents-to-distributed-skills-over-mcp/',
+  author: 'https://devblogs.microsoft.com/agent-framework/author/tstocchi/',
+  photo: 'https://devblogs.microsoft.com/agent-framework/wp-content/uploads/sites/78/2024/09/codemotion25-small-150x150.webp',
+  workflows: 'https://learn.microsoft.com/en-us/agent-framework/workflows/',
+  orchestrations: 'https://learn.microsoft.com/en-us/agent-framework/workflows/orchestrations/',
+  handoff: 'https://learn.microsoft.com/en-us/agent-framework/workflows/orchestrations/handoff#differences-between-handoff-and-agent-as-tools',
+};
 
 function addHeader(slide, section, title, subtitle) {
   slide.background = { color: C.bg };
@@ -109,9 +152,13 @@ function addHeader(slide, section, title, subtitle) {
   slide.addShape(pptx.ShapeType.line, { x: 0.65, y: 1.92, w: 12.0, h: 0, line: { color: C.line, width: 1 } });
 }
 
-function footer(slide, n, timing) {
-  slide.addText(`${String(n).padStart(2, '0')}  ·  AI OBSERVATORY`, { x: 0.65, y: 7.08, w: 3, h: 0.2, fontSize: 8.5, bold: true, color: C.muted, charSpacing: 1, margin: 0 });
-  if (timing) slide.addText(timing, { x: 10.5, y: 7.05, w: 2.15, h: 0.22, fontSize: 9, color: C.teal, bold: true, align: 'right', margin: 0 });
+// Slide number and time slot are computed when the slide's minutes are known (addNotes), so slides can be inserted freely.
+let pendingFooter = null;
+function footer(slide) { pendingFooter = slide; }
+const clock = minutes => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+function renderFooter(slide, start, end) {
+  slide.addText(`${String(pptx._slides.length).padStart(2, '0')}  ·  AI OBSERVATORY`, { x: 0.65, y: 7.08, w: 3, h: 0.2, fontSize: 8.5, bold: true, color: C.muted, charSpacing: 1, margin: 0 });
+  slide.addText(`${clock(start)}–${clock(end)}`, { x: 10.5, y: 7.05, w: 2.15, h: 0.22, fontSize: 9, color: C.teal, bold: true, align: 'right', margin: 0 });
 }
 
 function card(slide, x, y, w, h, title, body, opts = {}) {
@@ -127,12 +174,14 @@ function pill(slide, x, y, w, text, color = C.teal, fill = C.pale) {
 }
 
 function addNotes(slide, minutes, notes) {
+  const start = totalMinutes;
   totalMinutes += Number.parseInt(minutes, 10);
+  if (pendingFooter === slide) { renderFooter(slide, start, totalMinutes); pendingFooter = null; }
   slide.addNotes(`[TEMPO: ${minutes}]\n${notes}`);
 }
 
-function addSource(slide, text) {
-  slide.addText(text, { x: 0.68, y: 6.72, w: 11.9, h: 0.2, fontSize: 7.5, color: '718690', italic: true, margin: 0, fit: 'shrink' });
+function addSource(slide, text, url) {
+  slide.addText(text, { x: 0.68, y: 6.72, w: 11.9, h: 0.2, fontSize: 7.5, color: '718690', italic: true, margin: 0, fit: 'shrink', hyperlink: url ? { url } : undefined });
 }
 
 // 1
@@ -147,7 +196,7 @@ function addSource(slide, text) {
   s.addText('Un caso reale di chatbot · telemetria · latenza · token · costo', { x: 0.75, y: 4.62, w: 8.8, h: 0.38, fontSize: 16, color: 'D6E6EA', margin: 0 });
   s.addText('Andrea Tosato', { x: 0.75, y: 6.27, w: 3.8, h: 0.32, fontSize: 17, bold: true, color: C.white, margin: 0 });
   s.addText('60 minuti · talk + demo LIVE', { x: 9.3, y: 6.31, w: 3.25, h: 0.26, fontSize: 12, color: C.mint, align: 'right', margin: 0 });
-  addNotes(s, "2'", "Aprire con la domanda: una risposta fluida è davvero una buona risposta? Promessa: seguiremo una richiesta dall'utente al ledger. Dichiarare che scenario e dati sono sintetici, il catalogo è uno snapshot pubblico, mentre la telemetria LIVE è reale quando esplicitamente indicato.");
+  addNotes(s, "1'", "Aprire con la domanda: una risposta fluida è davvero una buona risposta? Promessa: seguiremo una richiesta dall'utente al ledger. Dichiarare che scenario e dati sono sintetici, il catalogo è uno snapshot pubblico, mentre la telemetria LIVE è reale quando esplicitamente indicato.");
 }
 
 // 2
@@ -162,14 +211,49 @@ function addSource(slide, text) {
     ['COSTO', 'Per chiamata?\nPer run?\nPer esito corretto?', C.red, C.redPale],
   ];
   items.forEach((it, i) => {
-    s.addShape(pptx.ShapeType.ellipse, { x: xs[i] + 0.78, y: 2.28, w: 1.08, h: 1.08, fill: { color: it[4] }, line: { color: it[2], width: 2 } });
+    s.addShape(pptx.ShapeType.ellipse, { x: xs[i] + 0.78, y: 2.28, w: 1.08, h: 1.08, fill: { color: it[3] }, line: { color: it[2], width: 2 } });
     s.addText(String(i + 1), { x: xs[i] + 1.03, y: 2.57, w: 0.58, h: 0.36, fontSize: 22, bold: true, color: it[2], align: 'center', margin: 0 });
     s.addText(it[0], { x: xs[i], y: 3.62, w: 2.65, h: 0.28, fontSize: 12, bold: true, color: it[2], align: 'center', charSpacing: 1.2, margin: 0 });
     s.addText(it[1], { x: xs[i], y: 4.12, w: 2.65, h: 1.05, fontSize: 15, bold: true, color: C.ink, align: 'center', valign: 'mid', margin: 0, breakLine: false, fit: 'shrink' });
   });
   s.addText('Ottimizzare una sola metrica può peggiorare il sistema.', { x: 2.55, y: 5.73, w: 8.2, h: 0.46, fontSize: 22, bold: true, color: C.navy, align: 'center', margin: 0 });
-  footer(s, 2, "00:02–00:04");
+  footer(s);
   addNotes(s, "2'", "Coinvolgere il pubblico: quale errore è più grave, tono poco elegante, prezzo inventato o reso autorizzato per il motivo sbagliato? La risposta introduce la necessità di misurare qualità e non solo velocità/costo.");
+}
+
+// Workflow overview belongs before the demo architecture.
+{
+  const s = pptx.addSlide();
+  addHeader(s, 'La mappa dei workflow', 'Cinque orchestrazioni + agent-as-tool', 'Prima scegli chi decide e chi risponde. Poi scegli come collegare i componenti.');
+  const patterns = [
+    ['Sequential', 'A → B → C\nPipeline ordinata: ogni fase passa il risultato alla successiva.'],
+    ['Concurrent', 'A ∥ B ∥ C → sintesi\nLavori indipendenti in parallelo; raccolta dei risultati.'],
+    ['Handoff', 'A → B · cambia il responsabile\nIl destinatario prende il controllo del task e del dialogo.'],
+    ['Group Chat', 'Manager ↔ conversazione condivisa\nTurni selezionati e raffinamento tra più agenti.'],
+    ['Magentic', 'Pianifica → esegui → verifica → ripianifica\nCoordinamento adattivo per problemi aperti.'],
+    ['Agent-as-tool', 'Principale → specialista → principale\nDelega circoscritta; la risposta finale resta al principale.'],
+  ];
+  patterns.forEach(([title, body], i) => card(s, 0.7 + (i % 3) * 4.18, 2.12 + Math.floor(i / 3) * 1.72, 3.74, 1.56,
+    title, body, { fill: i === 5 ? C.pale : C.white, line: i === 5 ? C.teal : C.line, titleSize: 16, bodySize: 11, shadow: false }));
+  const capabilities = [
+    ['COMPOSIZIONE', 'Agenti nei workflow · workflow come agenti\nworkflow dichiarativi'],
+    ['INTERAZIONE E DURABILITÀ', 'Human-in-the-loop\ncheckpoint e ripresa'],
+    ['OPERATIVITÀ', 'Osservabilità\nvisualizzazione'],
+  ];
+  capabilities.forEach(([title, body], i) => {
+    const x = 0.7 + i * 4.18;
+    s.addText(title, { x, y: 5.65, w: 3.74, h: 0.19, fontSize: 9, bold: true, color: C.teal, charSpacing: 0.6, margin: 0 });
+    s.addText(body, { x, y: 5.94, w: 3.74, h: 0.45, fontSize: 10.5, color: C.ink, margin: 0, fit: 'shrink' });
+  });
+  addSource(s, 'Fonte: Microsoft Learn · Workflow capabilities. Agent-as-tool è un pattern aggiuntivo, non il sesto workflow built-in.', sources.workflows);
+  footer(s);
+  addNotes(s, "3'", `Mappa iniziale completa delle voci della pagina Workflow capabilities, consultata il 25/09/2026: ${sources.workflows}
+Le quattro categorie sono Composition (Agents in workflows, Workflows as agents, Declarative workflows), Interaction and durability (Human-in-the-loop, Checkpoints and resuming), Operations (Observability, Visualization) e Multi-agent orchestration (Sequential, Concurrent, Handoff, Group Chat, Magentic).
+La slide distingue le capacità trasversali dai cinque pattern di orchestrazione: ${sources.orchestrations}
+Sequential: percorso ordinato con passaggio dei risultati. Concurrent: fan-out su attività indipendenti e aggregazione, non necessariamente dialogo reciproco. Handoff: trasferimento del controllo al destinatario. Group Chat: un manager sceglie i turni in una conversazione condivisa. Magentic: pianificazione e controllo adattivo dei progressi; non promettere efficacia universale.
+Agent-as-tool è aggiunto intenzionalmente come pattern di delega, NON come sesto builder nell'elenco Learn. Il principale invoca un altro agente, riceve il risultato e prosegue; non trasferisce l'intera ownership del task. Fonte del confronto: ${sources.handoff}
+Executors, edges, events e state sono primitive del grafo; routing condizionale, fan-out/fan-in, iterazioni e composizione permettono workflow personalizzati. Non confonderli con ulteriori voci built-in: https://learn.microsoft.com/en-us/agent-framework/concepts/workflows/
+Questi pattern sono componibili. Nella demo A2A è il protocollo usato per una delega agent-as-tool, non un sesto tipo di workflow.`);
 }
 
 // 3
@@ -193,8 +277,8 @@ function addSource(slide, text) {
   card(s, 7.05, 2.15, 5.15, 3.8, 'Il caso ORD-1042', 'Listino: 29,99 USD\nPagato: 19,99 USD\nConsegna: 5 settembre 2026\nArticolo outlet\n\nIl cliente prima parla di ripensamento, poi chiarisce che il prodotto era difettoso.', { kicker: 'SCENARIO DI CORREZIONE', fill: C.white, accent: C.teal, bodySize: 14 });
   pill(s, 7.35, 5.25, 2.1, 'QUALITÀ ≠ STILE');
   pill(s, 9.65, 5.25, 2.2, 'TOKEN ≠ QUALITÀ', C.amber, C.amberPale);
-  footer(s, 3, "00:04–00:07");
-  addNotes(s, "3'", "Spiegare gli expected facts prima di guardare l'output. Una risposta può essere persuasiva e sbagliata. La rubrica permette di ripetere il confronto e separa giudizio qualitativo da telemetria quantitativa.");
+  footer(s);
+  addNotes(s, "2'", "Spiegare gli expected facts prima di guardare l'output. Una risposta può essere persuasiva e sbagliata. La rubrica permette di ripetere il confronto e separa giudizio qualitativo da telemetria quantitativa.");
 }
 
 // 4
@@ -216,8 +300,208 @@ function addSource(slide, text) {
   });
   [[2.35,3.47,0.42,0],[4.5,3.47,0.42,-0.65],[4.5,3.47,0.42,0.82],[7.08,3.47,0.5,0],[9.68,3.47,0.5,0]].forEach(a => s.addShape(pptx.ShapeType.chevron, { x: a[0], y: a[1] + a[3], w: a[2], h: 0.24, fill: { color: C.mint }, line: { color: C.mint } }));
   s.addText('Una delega, un retry o una history diversa cambiano il numero di inferenze.', { x: 2.35, y: 5.55, w: 8.7, h: 0.4, fontSize: 18, bold: true, color: C.ink, align: 'center', margin: 0 });
-  footer(s, 4, "00:07–00:10");
-  addNotes(s, "3'", "Mostrare i tre percorsi: Inline e Skills hanno un solo agente modello Router; A2A delega agli specialisti remoti. I servizi business sono distinti dagli agenti. Il confronto tra architetture non isola automaticamente il solo overhead di rete.");
+  footer(s);
+  addNotes(s, "2'", "Mostrare i tre percorsi: Inline e Skills hanno un solo agente modello, il Router; A2A delega agli specialisti remoti. I servizi business sono distinti dagli agenti. Il confronto tra architetture non isola automaticamente il solo overhead di rete. Le prossime tre slide mostrano come è fatto davvero il sistema.");
+}
+
+// 4b · Architettura (native shapes: editable in PowerPoint)
+{
+  const s = pptx.addSlide();
+  addHeader(s, 'Architettura della demo', 'Un agente, un processo: 13 risorse orchestrate da Aspire', 'Stesso dominio e stessi tool; cambia dove vivono istruzioni e modello.');
+  const box = (x, y, w, h, title, sub, fill, lineColor, titleColor = C.ink, subColor = C.muted, titleSize = 11) => {
+    s.addShape(pptx.ShapeType.roundRect, { x, y, w, h, rectRadius: 0.05, fill: { color: fill }, line: { color: lineColor, width: 1.2 } });
+    s.addText(title, { x: x + 0.05, y: y + 0.14, w: w - 0.1, h: 0.24, fontSize: titleSize, bold: true, color: titleColor, align: 'center', margin: 0, fit: 'shrink' });
+    if (sub) s.addText(sub, { x: x + 0.06, y: y + 0.44, w: w - 0.12, h: h - 0.52, fontSize: 8.5, color: subColor, align: 'center', valign: 'top', margin: 0, fit: 'shrink' });
+  };
+  const arrow = (x1, y1, x2, y2, color = C.teal, dash = 'solid') => s.addShape(pptx.ShapeType.line, {
+    x: Math.min(x1, x2), y: Math.min(y1, y2), w: Math.abs(x2 - x1) || 0.001, h: Math.abs(y2 - y1) || 0.001,
+    flipV: y2 < y1, line: { color, width: 1.5, dashType: dash, endArrowType: 'triangle' },
+  });
+  const label = (x, y, w, text, color = C.muted) => s.addText(text, { x, y, w, h: 0.18, fontSize: 7.5, bold: true, color, align: 'center', margin: 0, fit: 'shrink' });
+  const rows = [
+    { y: 2.2, key: 'inline', router: 'router-inline', color: C.blue, fill: C.bluePale, path: 'INLINE · tutto in un processo', link: 'libreria', toShop: 'HTTP (router)' },
+    { y: 3.62, key: 'skills', router: 'router-skills', color: C.teal, fill: C.pale, path: 'SKILLS · istruzioni remote, tool locali', link: 'GET SKILL.md', toShop: 'HTTP (router)' },
+    { y: 5.04, key: 'a2a', router: 'router-a2a', color: C.amber, fill: C.amberPale, path: 'A2A · agenti remoti', link: 'A2A', toShop: 'HTTP (agente)' },
+  ];
+  const h = 1.12;
+  box(0.55, 3.62, 1.3, h, 'web', 'React · Vite\nchat + telemetria', C.white, C.line);
+  rows.forEach(row => {
+    arrow(1.85, 3.62 + h / 2, 2.3, row.y + h / 2, C.muted);
+    box(2.3, row.y, 2.2, h, row.router, 'MODELLO · istruzioni router\nledger token/costo', C.navy, C.navy, C.mint, C.white);
+    arrow(4.5, row.y + h / 2, 5.3, row.y + h / 2, row.color, row.key === 'inline' ? 'dash' : 'solid');
+    label(4.5, row.y + h / 2 - 0.24, 0.8, row.link, row.color);
+    s.addText(row.path, { x: 5.3, y: row.y - 0.2, w: 3.65, h: 0.17, fontSize: 7.5, bold: true, color: row.color, charSpacing: 0.6, margin: 0, fit: 'shrink' });
+    if (row.key === 'inline') box(5.3, row.y, 3.65, h, 'Observatory.Inline', 'libreria in-process (nessun processo in più)\nistruzioni dei 3 domini concatenate nel prompt', row.fill, row.color);
+    else ['catalog', 'orders', 'returns'].forEach((domain, i) => box(5.3 + i * 1.24, row.y, 1.17, h,
+      `${row.key === 'skills' ? 'skill' : 'agent'}-${domain}`,
+      row.key === 'skills' ? 'NESSUN MODELLO\n/skills · SKILL.md' : 'MODELLO\nprocedura + tool', row.fill, row.color, C.ink, C.muted, 9.5));
+    arrow(8.95, row.y + h / 2, 9.75, row.y + h / 2, row.color, row.key === 'skills' ? 'dash' : 'solid');
+    label(8.95, row.y + h / 2 + 0.07, 0.8, row.toShop, row.color);
+  });
+  ['catalog', 'orders', 'returns'].forEach((domain, i) => box(9.75, rows[i].y, 2.9, h, `shop-${domain}`,
+    'API di business · NESSUN MODELLO\nsystem of record sintetico', C.white, C.line));
+  s.addShape(pptx.ShapeType.roundRect, { x: 0.55, y: 6.32, w: 12.1, h: 0.42, rectRadius: 0.05, fill: { color: C.navy }, line: { color: C.navy } });
+  s.addText('Aspire AppHost · service discovery · ServiceDefaults = OpenTelemetry (trace, metriche, log) → Dashboard · il ledger aggiunge token, cache e costo per chiamata', {
+    x: 0.75, y: 6.43, w: 11.7, h: 0.2, fontSize: 10, bold: true, color: C.mint, align: 'center', margin: 0, fit: 'shrink',
+  });
+  footer(s);
+  addNotes(s, "2'", `Leggere la slide per righe. Inline: il router ha tutte le istruzioni dei tre domini nel prompt e tutti i tool, grazie alla libreria Observatory.Inline: nessun processo aggiuntivo.
+Skills: il router scarica dagli skill site solo l'indice (GET /skills); il modello chiama load_skill e allora il router scarica SKILL.md (e read_skill_resource per le reference). Gli skill site non hanno modello: pubblicano istruzioni. I tool restano nel router, che chiama direttamente le API shop. Se uno skill site non risponde, la run si ferma con skill_unavailable (fail closed).
+A2A: il router vede tre tool catalog_agent/orders_agent/returns_agent; ogni chiamata è una richiesta A2A a un agente con modello, istruzioni e tool propri, che a sua volta chiama la sua API shop.
+Tutti i progetti usano ServiceDefaults: l'osservabilità è quella di Aspire (OpenTelemetry), arricchita dal ledger applicativo con token, cache e costo.`);
+}
+
+// 4c · Tool: la descrizione è parte del prompt
+{
+  const s = pptx.addSlide();
+  addHeader(s, 'Tool', 'Otto tool di dominio: la descrizione è prompt', 'Nomi, parametri e descrizioni esatti inviati al modello nella prima chiamata Inline. Testi integrali nelle note.');
+  const headers = ['TOOL', 'PARAMETRI', 'COSA DICE AL MODELLO (prima frase)', 'API'];
+  const w = [1.75, 2.05, 3.85, 1.05];
+  const x = w.map((_, i) => 0.65 + w.slice(0, i).reduce((a, b) => a + b, 0));
+  headers.forEach((text, i) => {
+    s.addShape(pptx.ShapeType.rect, { x: x[i], y: 2.1, w: w[i], h: 0.36, fill: { color: C.navy }, line: { color: C.white, width: 1 } });
+    s.addText(text, { x: x[i] + 0.05, y: 2.2, w: w[i] - 0.1, h: 0.16, fontSize: 8.5, bold: true, color: C.white, align: 'center', margin: 0, fit: 'shrink' });
+  });
+  domainTools.forEach((tool, ri) => {
+    const y = 2.46 + ri * 0.47;
+    const failing = tool.name === 'assess_return';
+    [tool.name, tool.parameters, firstSentence(tool.description), tool.api].forEach((value, i) => {
+      s.addShape(pptx.ShapeType.rect, { x: x[i], y, w: w[i], h: 0.47, fill: { color: failing ? C.redPale : ri % 2 ? 'F7FAFA' : C.white }, line: { color: C.line, width: 0.8 } });
+      s.addText(value, { x: x[i] + 0.06, y: y + 0.04, w: w[i] - 0.12, h: 0.39, fontSize: i === 2 ? 8.5 : 9, bold: i === 0, color: failing && i < 2 ? C.red : C.ink, fontFace: i < 2 ? 'Consolas' : undefined, valign: 'mid', align: i === 3 ? 'center' : 'left', margin: 0, fit: 'shrink' });
+    });
+  });
+  card(s, 9.6, 2.1, 3.05, 1.72, 'Chi riceve i tool', 'Inline e Skills: il router riceve tutti gli 8.\nA2A: ogni agente solo i propri; il router vede 3 tool agente.\nSkills aggiunge load_skill e read_skill_resource.', { fill: C.white, titleSize: 12.5, bodySize: 9.5, shadow: false });
+  card(s, 9.6, 3.98, 3.05, 2.28, `${measurements.quality.validationErrors}/${measurements.quality.assessmentAttempts} assess_return falliti`,
+    `reason è una stringa libera: nessun valore ammesso nello schema.\nIl modello invia "${assessmentReason}".\nL'API risponde: "${assessmentError}"\n→ elencare i valori (enum) nella descrizione.`,
+    { kicker: 'LEZIONE DALLE MISURE', fill: C.redPale, line: C.red, accent: C.red, titleSize: 12.5, bodySize: 9.5, shadow: false });
+  addSource(s, `Fonte: request.tools della run ${measuredRows[0].runId}. Ogni schema tool è input fatturato a ogni chiamata: ${formatNumber(toolSchemaCharacters.inline)} car. Inline · ${formatNumber(toolSchemaCharacters.skills)} Skills · ${formatNumber(toolSchemaCharacters.a2a)} router A2A.`);
+  footer(s);
+  addNotes(s, "1'", `Il contratto del tool è un prompt: nome, descrizione e schema dei parametri vanno al modello a ogni chiamata e si pagano come input (sono nel prefisso, quindi cacheabili se stabili).
+Nelle sei run: ${measurements.quality.caveat}
+Il problema non è di rete: lo schema di assess_return non dichiara i valori ammessi di reason; il modello scrive il motivo in italiano. Fix suggerito (non applicato per non alterare le misure): enum o elenco dei valori nella descrizione.
+DESCRIZIONI INTEGRALI REGISTRATE:
+${recordedTools.map(tool => `${tool.name}(${tool.parameters}): ${tool.description}`).join('\n')}`);
+}
+
+// 4d · Descrizioni agentiche
+{
+  const s = pptx.addSlide();
+  addHeader(s, 'Descrizioni agentiche', 'Lo stesso specialista, confezionato in tre modi', 'Cosa legge il modello per decidere a chi chiedere, e quando legge la procedura completa.');
+  const rowLabels = [
+    ['A2A · descrizione del tool agente', 'il router A2A la vede sempre'],
+    ['SKILLS · description di SKILL.md', 'il router Skills la vede sempre'],
+    ['PROCEDURA dello specialista', 'Inline: sempre nel prompt\nSkills: dopo load_skill\nA2A: nel prompt dell’agente'],
+  ];
+  rowLabels.forEach((row, i) => {
+    const y = 2.55 + i * 1.3;
+    s.addText(row[0], { x: 0.65, y, w: 2.3, h: 0.3, fontSize: 10, bold: true, color: [C.amber, C.teal, C.navy][i], margin: 0, fit: 'shrink' });
+    s.addText(row[1], { x: 0.65, y: y + 0.32, w: 2.3, h: 0.75, fontSize: 8.5, color: C.muted, margin: 0, valign: 'top', fit: 'shrink' });
+  });
+  specialists.forEach((specialist, i) => {
+    const x = 3.1 + i * 3.2;
+    s.addText(specialist.name.toUpperCase(), { x, y: 2.08, w: 3.0, h: 0.3, fontSize: 13, bold: true, color: C.ink, align: 'center', margin: 0 });
+    [specialist.a2a, specialist.skill, `${formatNumber(specialist.procedureCharacters)} caratteri · ${specialist.procedureLines} righe\n“${specialist.procedureFirstLine}”`].forEach((text, row) => {
+      const y = 2.48 + row * 1.3;
+      s.addShape(pptx.ShapeType.roundRect, { x, y, w: 3.0, h: 1.18, rectRadius: 0.05, fill: { color: [C.amberPale, C.pale, C.white][row] }, line: { color: [C.amber, C.teal, C.line][row], width: 1 } });
+      s.addText(text, { x: x + 0.12, y: y + 0.08, w: 2.76, h: 1.02, fontSize: 9, color: C.ink, valign: 'mid', margin: 0, fit: 'shrink' });
+    });
+  });
+  s.addText('Descrizione breve = routing economico. Procedura completa = solo quando serve (Skills) o solo dove serve (A2A).', {
+    x: 0.65, y: 6.4, w: 12.0, h: 0.3, fontSize: 12.5, bold: true, color: C.ink, align: 'center', margin: 0, fit: 'shrink',
+  });
+  footer(s);
+  addNotes(s, "1'", `Il modello sceglie lo specialista leggendo testo: la descrizione del tool agente (A2A) o la description della skill (Skills). Descrizioni vaghe o sovrapposte producono deleghe sbagliate o doppie.
+La procedura completa (identica nei tre percorsi, verificata da un test) entra nel contesto in momenti diversi: sempre (Inline), su richiesta tramite load_skill (Skills), solo nel prompt dello specialista (A2A).
+TESTI INTEGRALI:
+${specialists.map(specialist => `== ${specialist.name}\nA2A: ${specialist.a2a}\nSKILL: ${specialist.skill}\nPROCEDURA:\n${specialist.procedure}`).join('\n\n')}`);
+}
+
+// Considerations from the shared reasoning and Stocchi's article.
+{
+  const s = pptx.addSlide();
+  addHeader(s, 'Considerazioni · 1/2', 'Serve un altro agente o un’altra competenza?', 'Tool, skill e agent-as-tool distribuiscono responsabilità diverse, non soltanto chiamate HTTP.');
+  s.addShape(pptx.ShapeType.roundRect, { x: 0.7, y: 2.12, w: 2.67, h: 4.12, rectRadius: 0.06, fill: { color: C.white }, line: { color: C.line } });
+  s.addImage({ path: stocchiPhoto, x: 1.485, y: 2.35, w: 1.1, h: 1.1, altText: 'Tommaso Stocchi — foto del profilo Microsoft Developer Blogs', hyperlink: { url: sources.author } });
+  s.addText('Tommaso Stocchi', { x: 0.89, y: 3.66, w: 2.29, h: 0.3, fontSize: 15, bold: true, color: C.ink, align: 'center', margin: 0, hyperlink: { url: sources.author } });
+  s.addText('Microsoft Developer Blogs\n16 settembre 2026', { x: 0.91, y: 4.06, w: 2.25, h: 0.51, fontSize: 10.5, color: C.muted, align: 'center', margin: 0 });
+  s.addText('From Specialist Agents\nto Distributed Skills\nover MCP', { x: 0.93, y: 4.83, w: 2.21, h: 0.79, fontSize: 12, bold: true, color: C.teal, align: 'center', margin: 0, hyperlink: { url: sources.distributedSkills } });
+  s.addText('Foto: profilo autore Microsoft\nLink a fonte e profilo cliccabili', { x: 0.88, y: 5.77, w: 2.31, h: 0.3, fontSize: 8, color: C.muted, align: 'center', margin: 0, hyperlink: { url: sources.author } });
+  const choices = [
+    ['TOOL', 'Esegue un’operazione delimitata.\nLa decisione su quando usarlo resta al chiamante.', C.blue, C.bluePale],
+    ['SKILL DISTRIBUITA', 'Porta una procedura nel contesto del principale.\nNell’articolo: istruzioni + tool remoti via MCP, senza un LLM specialista.', C.teal, C.pale],
+    ['AGENT-AS-TOOL', 'Delega un sottoproblema a un altro reasoner.\nUtile per autonomia, contesto privato, modello o workflow specializzato.', C.amber, C.amberPale],
+  ];
+  choices.forEach(([title, body, color, fill], i) => {
+    const y = 2.12 + i * 1.36;
+    s.addShape(pptx.ShapeType.roundRect, { x: 3.65, y, w: 8.95, h: 1.2, rectRadius: 0.05, fill: { color: fill }, line: { color, width: 1 } });
+    s.addText(title, { x: 3.88, y: y + 0.28, w: 2.08, h: 0.61, fontSize: 12.5, bold: true, color, margin: 0, valign: 'mid', fit: 'shrink' });
+    s.addText(body, { x: 6.12, y: y + 0.21, w: 6.22, h: 0.78, fontSize: 12, color: C.ink, margin: 0, valign: 'mid', fit: 'shrink' });
+  });
+  s.addText('Servizi e ownership possono restare distribuiti anche con un solo reasoner principale.', { x: 3.65, y: 6.24, w: 8.95, h: 0.29, fontSize: 12.5, bold: true, color: C.ink, align: 'center', margin: 0, fit: 'shrink' });
+  s.addText([
+    { text: 'Fonte: Tommaso Stocchi · articolo e foto Microsoft Developer Blogs', options: { hyperlink: { url: sources.distributedSkills } } },
+    { text: '  |  Ragionamento ChatGPT condiviso', options: { hyperlink: { url: sources.reflection } } },
+  ], { x: 0.68, y: 6.72, w: 11.9, h: 0.2, fontSize: 7.5, color: '718690', italic: true, margin: 0, fit: 'shrink' });
+  footer(s);
+  addNotes(s, "2'", `Ragionamento di partenza fornito dall'utente, letto nella pagina pubblica: ${sources.reflection}
+Sintesi/parafrasi, non riproduzione integrale: tool = operazione delimitata; skill = competenza/procedura acquisita dal principale; agent-as-tool = delega a un reasoner autonomo. Il numero di processi non determina il numero di cicli LLM.
+Fonte tecnica: Tommaso Stocchi, From Specialist Agents to Distributed Skills over MCP, Microsoft Developer Blogs, 16/09/2026: ${sources.distributedSkills}
+La tesi è mantenere distribuiti i servizi di dominio e spostare le istruzioni dello specialista nell'orchestratore quando non serve un altro reasoner. Non significa sostituire qualsiasi agente con una skill: nell'articolo un agente di ricerca resta agent-as-tool in entrambe le architetture.
+Autonomia, contesto privato, modello specifico e workflow complesso sono buoni motivi per mantenere uno specialista agente. Un deployment indipendente non richiede da solo un LLM aggiuntivo: anche un provider di skill o un servizio business può avere infrastruttura e ownership proprie.
+DISTINZIONE DALLA NOSTRA DEMO: qui le skill sono pubblicate via API HTTP ad hoc e i tool sono nel router. L'articolo distribuisce istruzioni e operazioni tramite MCP. Non affermare che la nostra demo implementi MCP.
+Il trasporto skill mostrato nell'articolo usa una revisione storica di SEP-2640 con skill://index.json; non è una proprietà obbligatoria del core MCP. Il codice citato usa agent-framework-core 1.17.0 e una specifica API sperimentale: verificare versioni/compatibilità prima di migrare.
+ATTRIBUZIONE FOTO: profilo pubblico di Tommaso Stocchi, ${sources.author}
+Immagine originale 150×150: ${sources.photo}
+La foto inclusa è una conversione PNG dell'immagine pubblicata, non generata. La pubblicazione sul web non implica una licenza libera di riutilizzo.`);
+}
+
+{
+  const s = pptx.addSlide();
+  addHeader(s, 'Considerazioni · 2/2', 'Dialogo tra agenti: chi mantiene il controllo?', 'Agent-as-tool è adatto a risposte mirate e responsabilità chiare; la velocità va misurata.');
+  const dialogue = [
+    ['Delega · agent-as-tool', 'Principale → specialista → principale\nResponsabilità del sottotask allo specialista; risposta finale al principale.', C.teal, C.pale],
+    ['Trasferimento · handoff', 'Agente A → agente B\nIl destinatario assume il task e prosegue il dialogo.', C.blue, C.bluePale],
+    ['Collaborazione · group chat / Magentic', 'Manager ↔ agenti\nContesto condiviso, turni o piano adattivo; più coordinamento da misurare.', C.amber, C.amberPale],
+  ];
+  dialogue.forEach(([title, body, color, fill], i) => {
+    const y = 2.12 + i * 1.17;
+    s.addShape(pptx.ShapeType.roundRect, { x: 0.7, y, w: 7.43, h: 1.04, rectRadius: 0.05, fill: { color: fill }, line: { color, width: 1 } });
+    s.addText(title, { x: 0.9, y: y + 0.15, w: 7.03, h: 0.25, fontSize: 13, bold: true, color, margin: 0, fit: 'shrink' });
+    s.addText(body, { x: 0.9, y: y + 0.48, w: 7.03, h: 0.44, fontSize: 10.5, color: C.ink, margin: 0, fit: 'shrink' });
+  });
+  s.addShape(pptx.ShapeType.roundRect, { x: 8.4, y: 2.12, w: 4.23, h: 3.85, rectRadius: 0.05, fill: { color: C.white }, line: { color: C.line } });
+  s.addText('NELLA DEMO DI STOCCHI', { x: 8.61, y: 2.31, w: 3.81, h: 0.22, fontSize: 10, bold: true, color: C.teal, charSpacing: 0.7, margin: 0 });
+  s.addText('Tre coppie di run, non un benchmark', { x: 8.61, y: 2.65, w: 3.81, h: 0.25, fontSize: 11, bold: true, color: C.ink, margin: 0, fit: 'shrink' });
+  const rows = [
+    ['MISURA', 'A2A', 'SKILL MCP'],
+    ['Media end-to-end', '15,480 s', '6,348 s'],
+    ['Chiamate / run', '6 / 6 / 7', '3 / 3 / 3'],
+    ['Token totali (3 run)', '11.134', '13.533'],
+  ];
+  rows.forEach((row, ri) => row.forEach((value, ci) => {
+    const widths = [1.69, 1.0, 1.12];
+    const x = 8.61 + widths.slice(0, ci).reduce((sum, w) => sum + w, 0);
+    const y = 3.09 + ri * 0.37;
+    s.addShape(pptx.ShapeType.rect, { x, y, w: widths[ci], h: 0.37, fill: { color: ri === 0 ? C.navy : ri % 2 ? C.bg : C.white }, line: { color: C.white, width: 0.5 } });
+    s.addText(value, { x: x + 0.04, y: y + 0.1, w: widths[ci] - 0.08, h: 0.17, fontSize: 8.5, bold: ri === 0, color: ri === 0 ? C.white : C.ink, margin: 0, align: ci === 0 ? 'left' : 'center', fit: 'shrink' });
+  }));
+  s.addText('Skill più rapide qui, ma +22% token.\nCache e lavoro non equivalenti.\nNessuna garanzia su qualità o costo.', { x: 8.61, y: 4.81, w: 3.81, h: 0.81, fontSize: 11, bold: true, color: C.red, margin: 0, fit: 'shrink' });
+  s.addText('PATTERN ≠ PROTOCOLLO', { x: 0.7, y: 5.79, w: 7.43, h: 0.22, fontSize: 10, bold: true, color: C.teal, charSpacing: 0.7, margin: 0 });
+  s.addText('A2A: interoperabilità tra agenti · MCP: accesso a tool e risorse.\nMettere un agente dietro MCP non elimina il suo ciclo LLM.', { x: 0.7, y: 6.08, w: 11.9, h: 0.47, fontSize: 12, color: C.ink, margin: 0, fit: 'shrink' });
+  s.addText([
+    { text: 'Fonti: Stocchi · From Specialist Agents to Distributed Skills over MCP', options: { hyperlink: { url: sources.distributedSkills } } },
+    { text: '  |  Microsoft Learn · Handoff vs agent-as-tools', options: { hyperlink: { url: sources.handoff } } },
+  ], { x: 0.68, y: 6.72, w: 11.9, h: 0.2, fontSize: 7.5, color: '718690', italic: true, margin: 0, fit: 'shrink' });
+  footer(s);
+  addNotes(s, "2'", `PATTERN DI DIALOGO: agent-as-tool = delega con ritorno; handoff = trasferimento della responsabilità del task; group chat = turni in una conversazione condivisa; Magentic aggiunge pianificazione e verifica adattiva. Sequential e Concurrent, nella mappa iniziale, coordinano passaggio ordinato o lavoro indipendente in parallelo.
+Agent-as-tool è un'ottima scelta per un sottotask con input/output chiari e responsabilità specialistica: il principale conserva il controllo complessivo e decide la risposta finale. Un modello adeguato, contesto limitato, tool pertinenti e deleghe indipendenti in parallelo possono aiutare la latenza; NON garantiscono che sia più veloce di un singolo agente. Ogni specialista può aggiungere inferenze e round-trip. Il contratto deve stabilire risultato atteso, errori, consenso e confini delle operazioni. Autorizzazione e validazione devono essere nel codice.
+Confronto ufficiale: ${sources.handoff}
+DATI ESTERNI, NON MISURE AI OBSERVATORY: ${sources.distributedSkills}
+L'articolo riporta tre coppie: A2A 6/6/7 chiamate modello contro MCP skills 3/3/3; media end-to-end 15,480 s contro 6,348 s; token osservati complessivi 11.134 contro 13.533 (circa +22%). Non sono tariffe o costo in USD. Le metriche sono tempo fino a completamento SSE, non TTFT.
+Tre coppie illustrative, non studio controllato: processi già avviati, cache variabile, inizializzazione credenziali, runtime diversi, lavoro non identico e contatori cache A2A incompleti. Le chiamate degli specialisti si sovrappongono: non disegnare tutte le inferenze come sequenziali.
+Qualità: alcune risposte offrivano rassicurazioni senza consultare il provider safety. La latenza inferiore non dimostra stessa correttezza o completezza.
+A2A e MCP sono protocolli, non orchestrazioni. Nell'articolo A2A implementa agent-as-tool; MCP distribuisce skill e operazioni. Rimane anche un agente di ricerca in entrambe le soluzioni: l'ibrido è legittimo. La nostra demo Skills usa HTTP, non MCP, e le misure della nostra demo restano separate.
+Collegamento al ragionamento condiviso: ${sources.reflection}`);
 }
 
 // 5
@@ -235,8 +519,8 @@ function addSource(slide, text) {
   });
   s.addText('Non migrare i prompt con “trova e sostituisci”: rivaluta istruzioni, tool e criteri di completamento.', { x: 1.15, y: 6.36, w: 11, h: 0.32, fontSize: 15, bold: true, color: C.navy, align: 'center', margin: 0 });
   addSource(s, 'Fonti: guide ufficiali OpenAI GPT-5.4, GPT-5.6 Sol e GPT-6, verificate il 24–25/09/2026.');
-  footer(s, 5, "00:10–00:14");
-  addNotes(s, "4'", "Messaggio: non esiste il prompt universalmente ottimale. Per 5.4 evidenziare la gestione esplicita della verbosità; per 5.6 partire da risultato/prove/vincoli; per GPT-6 governare autonomia, chiarimenti, skill e priorità. Non confondere istruzioni di verbosità con reasoning effort.");
+  footer(s);
+  addNotes(s, "3'", "Messaggio: non esiste il prompt universalmente ottimale. Per 5.4 evidenziare la gestione esplicita della verbosità; per 5.6 partire da risultato/prove/vincoli; per GPT-6 governare autonomia, chiarimenti, skill e priorità. Non confondere istruzioni di verbosità con reasoning effort.");
 }
 
 // 6
@@ -256,8 +540,8 @@ function addSource(slide, text) {
   });
   s.addText('Scegli per task + SLA + qualità accettabile. Non dal prezzo per token isolato.', { x: 1.45, y: 6.36, w: 10.45, h: 0.34, fontSize: 17, bold: true, color: C.navy, align: 'center', margin: 0 });
   addSource(s, 'Listino OpenAI Standard per 1M token, 25/09/2026. Cache write esclusa dalla terna. Oltre 272K input: tier maggiorato. Verificare sempre Azure/deployment.');
-  footer(s, 6, "00:14–00:18");
-  addNotes(s, "4'", "Astra: più capace per lavori difficili; Sol: complessi workflow agentici/coding; Luna: efficienza per task focalizzati e volume. Terra: la richiesta lo cita, ma la model card ufficiale non è disponibile: non inventare differenze. Nella demo LIVE sono verificati GPT-5 e Sol; Astra/Luna non sono ancora live-ready. Le tariffe mostrate sono orientative del listino OpenAI, non la fattura Azure.");
+  footer(s);
+  addNotes(s, "3'", "Astra: più capace per lavori difficili; Sol: complessi workflow agentici/coding; Luna: efficienza per task focalizzati e volume. Terra: la richiesta lo cita, ma la model card ufficiale non è disponibile: non inventare differenze. Nella demo LIVE sono verificati GPT-5 e Sol; Astra/Luna non sono ancora live-ready. Le tariffe mostrate sono orientative del listino OpenAI, non la fattura Azure.");
 }
 
 // 7
@@ -282,8 +566,8 @@ function addSource(slide, text) {
     s.addText(b[2], { x: x + 1.02, y: y + 0.61, w: 2.45, h: 0.42, fontSize: 11.5, color: C.ink, margin: 0, fit: 'shrink' });
   });
   s.addText('Tagliare prima di chiarire = risparmiare token per ottenere più retry.', { x: 2.15, y: 5.82, w: 9, h: 0.45, fontSize: 21, bold: true, color: C.red, align: 'center', margin: 0 });
-  footer(s, 7, "00:18–00:21");
-  addNotes(s, "3'", "Usare questa slide come checklist di prompt review. Un prompt lungo non è necessariamente cattivo; un prompt breve non è necessariamente economico se genera chiamate inutili, chiarimenti o output errati.");
+  footer(s);
+  addNotes(s, "2'", "Usare questa slide come checklist di prompt review. Un prompt lungo non è necessariamente cattivo; un prompt breve non è necessariamente economico se genera chiamate inutili, chiarimenti o output errati.");
 }
 
 // 8
@@ -307,8 +591,8 @@ function addSource(slide, text) {
   card(s, 0.82, 4.62, 3.75, 1.42, 'Cache hit', 'Riduce il costo del prefisso già noto. Non riduce automaticamente output, tool o retry.', { fill: C.pale, line: C.teal, titleSize: 15, bodySize: 10.5, shadow: false });
   card(s, 4.8, 4.62, 3.75, 1.42, 'Cache write', 'Può avere una tariffa propria. Nel ledger Sol sostituisce il normale costo input.', { fill: C.amberPale, line: C.amber, titleSize: 15, bodySize: 10.5, shadow: false });
   card(s, 8.78, 4.62, 3.75, 1.42, 'Reasoning', 'È un sottoinsieme dell’output: non sommarlo una seconda volta.', { fill: C.redPale, line: C.red, titleSize: 15, bodySize: 10.5, shadow: false });
-  footer(s, 8, "00:21–00:25");
-  addNotes(s, "4'", "Spiegare i bucket senza doppio conteggio. Input totale può includere cached e cache write; reasoning è incluso nell'output. Un valore assente non vale zero. La semantica del provider e della rate card deve essere congelata nella run.");
+  footer(s);
+  addNotes(s, "3'", "Spiegare i bucket senza doppio conteggio. Input totale può includere cached e cache write; reasoning è incluso nell'output. Un valore assente non vale zero. La semantica del provider e della rate card deve essere congelata nella run.");
 }
 
 // 9
@@ -332,7 +616,7 @@ function addSource(slide, text) {
   ];
   tips.forEach((t, i) => card(s, 0.75 + i * 3.13, 4.68, 2.8, 1.18, t[0], t[1], { fill: C.white, titleSize: 13.5, bodySize: 10, shadow: false }));
   s.addText('Cache miss ≠ bug. È un segnale da spiegare.', { x: 8.5, y: 3.8, w: 3.3, h: 0.35, fontSize: 16, bold: true, color: C.ink, align: 'center', margin: 0 });
-  footer(s, 9, "00:25–00:28");
+  footer(s);
   addNotes(s, "3'", "Buone pratiche: prefisso stabile e identico, dati dinamici in coda, versionare prompt/tool, osservare hit rate. Non gonfiare il prompt solo per inseguire la cache. Una cache miss è spesso spiegabile da piccole variazioni o soglie.");
 }
 
@@ -350,7 +634,7 @@ function addSource(slide, text) {
   ];
   qs.forEach((q, i) => card(s, 0.72 + i * 3.13, 4.25, 2.82, 1.48, q[0], q[1], { fill: i === 3 ? C.pale : C.white, line: i === 3 ? C.teal : C.line, titleSize: 13, bodySize: 11, shadow: false }));
   s.addText('Costo assente = sconosciuto, non zero.', { x: 3.65, y: 6.13, w: 6.1, h: 0.42, fontSize: 20, bold: true, color: C.red, align: 'center', margin: 0 });
-  footer(s, 10, "00:28–00:31");
+  footer(s);
   addNotes(s, "3'", "Il nuovo input è input meno cached e cache writes quando i bucket sono inclusivi. Il ledger dell'app fail-closed se usage o pricing sono incompleti. Distinguere costo stimato dalla fattura Azure e budget applicativo da tetto provider.");
 }
 
@@ -379,7 +663,7 @@ function addSource(slide, text) {
   ];
   trade.forEach((t, i) => card(s, 0.88 + i * 4.18, 4.42, 3.72, 1.45, t[0], t[1], { fill: C.white, titleSize: 15, bodySize: 11.5, shadow: false }));
   s.addText('Nella demo la “prima risposta” è bufferizzata: non chiamarla TTFT del provider.', { x: 2.15, y: 6.2, w: 9.1, h: 0.3, fontSize: 13, bold: true, color: C.red, align: 'center', margin: 0 });
-  footer(s, 11, "00:31–00:34");
+  footer(s);
   addNotes(s, "3'", "Scomporre la latenza. Prompt e output più lunghi tendono ad aumentare lavoro e costo, ma il trade-off reale va misurato. Nell'app la risposta è bufferizzata: il tempo alla prima risposta non equivale al time-to-first-token streaming del provider.");
 }
 
@@ -405,8 +689,8 @@ function addSource(slide, text) {
   card(s, 1.2, 4.82, 3.35, 1.25, 'A/B', 'BAD → GOOD\ncambia il profilo prompt', { fill: C.bluePale, line: C.blue, titleSize: 14, bodySize: 10.5, shadow: false });
   card(s, 4.98, 4.82, 3.35, 1.25, 'B/C', 'GOOD → ridondante\ncambia un solo blocco', { fill: C.amberPale, line: C.amber, titleSize: 14, bodySize: 10.5, shadow: false });
   card(s, 8.75, 4.82, 3.35, 1.25, 'MODELLO', 'GPT-5 → GPT-6 Sol\nstesso task e limiti', { fill: C.pale, line: C.teal, titleSize: 14, bodySize: 10.5, shadow: false });
-  footer(s, 12, "00:34–00:37");
-  addNotes(s, "3'", "Spiegare che A/C non è un confronto a una variabile. Usare chat nuove per ogni variante. Alternare ordine per ridurre bias temporali. Una singola risposta non crea una classifica.");
+  footer(s);
+  addNotes(s, "2'", "Spiegare che A/C non è un confronto a una variabile. Usare chat nuove per ogni variante. Alternare ordine per ridurre bias temporali. Una singola risposta non crea una classifica.");
 }
 
 // 13
@@ -422,8 +706,8 @@ function addSource(slide, text) {
   card(s, 7.62, 2.12, 4.75, 3.95, 'Cosa guardiamo', '① configurazione effettiva\n② tool e agenti invocati\n③ numero di chiamate e retry\n④ input / cached / output\n⑤ durata e costo per run\n⑥ fatti e policy della risposta', { kicker: 'NON SOLO LA CHAT', fill: C.navy, line: C.navy, titleColor: C.white, bodyColor: C.white, accent: C.mint, bodySize: 14 });
   pill(s, 0.92, 6.2, 1.25, 'LIVE', C.red, C.redPale);
   s.addText('unboundedExecution=true · budget=null · MaxOutputTokens effettivo=null · nessuna bozza', { x: 2.35, y: 6.27, w: 10, h: 0.22, fontSize: 10.5, color: C.muted, margin: 0, fit: 'shrink' });
-  footer(s, 13, "00:37–00:47");
-  addNotes(s, "10'", `DEMO. Mostrare dallo Storico le sei run già persistite e le loro tracce, senza doverle rieseguire tutte sul palco. Se si esegue una nuova prova, usare la domanda e la configurazione esatte; consenso manuale prima dell'invio. Il percorso misurato è un solo turno per chat, non la conversazione multi-turn originaria.
+  footer(s);
+  addNotes(s, "7'", `DEMO. Mostrare dallo Storico le sei run già persistite e le loro tracce, senza doverle rieseguire tutte sul palco. Se si esegue una nuova prova, usare la domanda e la configurazione esatte; consenso manuale prima dell'invio. Il percorso misurato è un solo turno per chat, non la conversazione multi-turn originaria.
 Configurazione: ${JSON.stringify(measurements.experiment.configuration)}
 Domanda: ${measurements.experiment.question}
 Snapshot catalogo: ${measurements.catalogHash}
@@ -438,7 +722,7 @@ ${runReferences}`);
 // 14
 {
   const s = pptx.addSlide();
-  addHeader(s, 'Misure LIVE · 25 settembre 2026', 'Sei run reali: token, latenza, costo ed esito', 'GPT-5 / GOOD · stessa domanda · nessun cap applicativo su output, call o budget');
+  addHeader(s, `Misure LIVE · ${measurementDay}`, 'Sei run reali: token, latenza, costo ed esito', 'GPT-5 / GOOD · stessa domanda · un agente per processo, skill remote · nessun cap applicativo su output, call o budget');
   const headers = ['CASO', 'CALL', 'INPUT', 'CACHED¹', 'OUTPUT²', 'REASONING²', 'SECONDI', 'USD', 'ESITO'];
   const w = [1.2, 0.6, 1.32, 1.32, 1.32, 1.35, 1.05, 1.45, 2.4];
   const x = w.map((_, i) => 0.65 + w.slice(0, i).reduce((a, b) => a + b, 0));
@@ -466,8 +750,8 @@ ${runReferences}`);
   s.addText(`Sei run: ${formatNumber(measurements.totalControlledCostUsd, 8)} USD · ${currentSummary}`, {
     x: 0.7, y: 6.2, w: 11.9, h: 0.32, fontSize: 13, bold: true, color: C.teal, margin: 0, fit: 'shrink',
   });
-  addSource(s, 'Fonte: sei export LIVE/provider del 25/09/2026. Run ID e contatori non arrotondati nelle note. Stime ledger, non fattura.');
-  footer(s, 14, "00:47–00:50");
+  addSource(s, `Fonte: sei export LIVE/provider del ${measurementDate.toLocaleDateString('it-IT')} (${path.basename(measurementsDirectory)}). Run ID e contatori non arrotondati nelle note. Stime ledger, non fattura.`);
+  footer(s);
   addNotes(s, "3'", `Leggere i dati, non proclamare un vincitore. Esiti correnti: ${currentSummary}. Completed non certifica la correttezza dei fatti o il successo di tutti i tool. Un eventuale failed include solo il lavoro precedente allo stop: non è efficienza a parità di esito.
 La cache non è stata controllata; non attribuire causalmente alla cache le differenze fra i giri.
 Questo totale comprende solo le sei run senza cap applicativi, non pilot né precedenti run con budget. Restano limiti tecnici provider/SDK.
@@ -496,7 +780,7 @@ ${measuredRows.map(r => JSON.stringify({ ...r, answer: undefined, errors: undefi
     x: 0.75, y: 6.32, w: 11.9, h: 0.3, fontSize: 13, bold: true, color: C.ink, margin: 0, fit: 'shrink',
   });
   addSource(s, 'Fonte: request.instructions delle chiamate effettive. Cattura logica, non wire; non misura separatamente i token del system prompt.');
-  footer(s, 15, "00:50–00:52");
+  footer(s);
   const promptGroups = new Map();
   for (const bundle of evidence) {
     for (const call of bundle.ledger.calls) {
@@ -527,7 +811,7 @@ ${prompts.join('\n\n------------------------------\n\n')}`);
     x: 0.75, y: 6.2, w: 11.9, h: 0.38, fontSize: 12, bold: true, color: C.ink, margin: 0, fit: 'shrink',
   });
   addSource(s, 'Due ripetizioni non sono un benchmark. Risposte integrali, run ID, errori e valutazioni tool nelle note.');
-  footer(s, 16, "00:52–00:54");
+  footer(s);
   addNotes(s, "2'", `CONCLUSIONI ATTUALI DERIVATE DAGLI EXPORT:
 ${measurements.architectureSummaries.map(summary => summary.conclusion).join('\n')}
 ${measurements.quality.caveat}
@@ -563,7 +847,7 @@ ${measuredRows.map(r => `${r.architecture.toUpperCase()} ${r.repetition} / ${r.r
   });
   s.addShape(pptx.ShapeType.roundRect, { x: 6.75, y: 5.55, w: 5.8, h: 0.72, rectRadius: 0.06, fill: { color: C.pale }, line: { color: C.teal } });
   s.addText('Prima: correttezza e sicurezza. Poi: costo.', { x: 7.05, y: 5.79, w: 5.2, h: 0.24, fontSize: 15, bold: true, color: C.teal, align: 'center', margin: 0 });
-  footer(s, 17, "00:54–00:55");
+  footer(s);
   addNotes(s, "1'", "Usare questa slide come sintesi rapida delle leve già spiegate. Routing per task significa usare eval e fallback, non mandare automaticamente tutto al modello più economico. Gli errori devono restare visibili.");
 }
 
@@ -590,8 +874,8 @@ ${measuredRows.map(r => `${r.architecture.toUpperCase()} ${r.repetition} / ${r.r
   addNotes(s, "5' Q&A · 00:55–01:00", "Chiudere chiedendo al pubblico quale costo o errore misurerebbe per primo. Riservare cinque minuti alle domande. Se la demo è andata lunga, usare soltanto la frase finale e la domanda.");
 }
 
-assert.equal(pptx._slides.length, 18, 'Exactly 18 slides required');
+assert.equal(pptx._slides.length, 24, 'Exactly 24 slides required');
 assert.equal(totalMinutes, 60, 'Speaker timings must total exactly 60 minutes');
 pptx.writeFile({ fileName: path.join(__dirname, 'Osservare-AI-Andrea-Tosato-senza-limiti.pptx') })
-  .then(() => console.log('PPT saved: 18 slides, exactly 60 minutes; six validated unbounded runs.'))
+  .then(() => console.log(`PPT saved: 24 slides, exactly 60 minutes; six validated unbounded runs from ${path.basename(measurementsDirectory)}.`))
   .catch(error => { console.error(error); process.exitCode = 1; });

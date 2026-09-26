@@ -1,8 +1,7 @@
-using Observatory.AgentHost;
-using Observatory.Agents;
-using Observatory.Catalog.Api;
+using Observatory.Agent.Catalog;
+using Observatory.SpecialistHost;
 
-var builder = AgentHostApplication.CreateBuilder(args);
-builder.Services.AddSingleton<ISpecialistAgent, CatalogAgent>();
-var app = AgentHostApplication.Build(builder, AgentNames.Catalog, CatalogEndpoints.MapCatalog);
-await app.RunAsync();
+// Catalog specialist agent: its own process, model, instructions and tools. Invoked by the A2A router.
+var builder = SpecialistHostApplication.CreateBuilder<CatalogAgent>(args);
+var app = SpecialistHostApplication.Build(builder);
+app.Run();

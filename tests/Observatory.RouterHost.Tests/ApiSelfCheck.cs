@@ -4,10 +4,10 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
-using Observatory.Agents;
+using Observatory.AgentRuntime;
 using Observatory.Core;
 
-namespace Observatory.Api;
+namespace Observatory.RouterHost;
 
 internal static partial class ApiSelfCheck
 {
@@ -26,20 +26,20 @@ internal static partial class ApiSelfCheck
             ["Models:gpt5:Capabilities:FunctionCalling"] = "true",
             ["Models:gpt5:Capabilities:MaxOutputTokens"] = "true"
         }).Build();
-        var settings = new ObservatorySettings(configuration);
+        var settings = new ObservatorySettings(configuration, TestArchitectures.Inline);
         Check(settings.AllowLive && settings.Describe(data).DefaultMode == "live",
             "A ready deployment is advertised as LIVE.");
         configuration["Demo:DefaultMode"] = "live";
-        Check(new ObservatorySettings(configuration).Describe(data).DefaultMode == "live",
+        Check(new ObservatorySettings(configuration, TestArchitectures.Inline).Describe(data).DefaultMode == "live",
             "LIVE remains the only advertised execution mode.");
         configuration["Demo:AllowLive"] = "false";
-        Check(new ObservatorySettings(configuration).Describe(data).DefaultMode == "live"
-              && !new ObservatorySettings(configuration).AllowLive,
+        Check(new ObservatorySettings(configuration, TestArchitectures.Inline).Describe(data).DefaultMode == "live"
+              && !new ObservatorySettings(configuration, TestArchitectures.Inline).AllowLive,
             "LIVE can be the only mode while its readiness gate remains disabled.");
         configuration["Demo:AllowLive"] = "true";
         configuration["Models:gpt5:CachedInputPerMillion"] = "";
-        Check(new ObservatorySettings(configuration).Describe(data).DefaultMode == "live"
-              && !new ObservatorySettings(configuration).AllowLive,
+        Check(new ObservatorySettings(configuration, TestArchitectures.Inline).Describe(data).DefaultMode == "live"
+              && !new ObservatorySettings(configuration, TestArchitectures.Inline).AllowLive,
             "Missing verified pricing disables LIVE readiness without introducing another mode.");
         configuration["Models:gpt5:CachedInputPerMillion"] = "0.1";
         configuration["Models:gpt5:Pricing:CacheWritePerMillion"] = "1.25";
@@ -48,22 +48,22 @@ internal static partial class ApiSelfCheck
         configuration["Models:gpt5:Pricing:LongContextCachedInputPerMillion"] = "0.2";
         configuration["Models:gpt5:Pricing:LongContextCacheWritePerMillion"] = "2.5";
         configuration["Models:gpt5:Pricing:LongContextOutputPerMillion"] = "3";
-        var tieredSettings = new ObservatorySettings(configuration);
+        var tieredSettings = new ObservatorySettings(configuration, TestArchitectures.Inline);
         Check(tieredSettings.AllowLive && tieredSettings.DefaultMode == "live",
             "Complete explicit context/write rate card permits the LIVE default.");
         Check(tieredSettings.Models.Single(m => m.Id == "gpt5").Pricing ==
             new AgentModelRegistry(configuration).Registrations.Single(m => m.Model.Id == "gpt5").Model.Pricing,
             "API and runtime parse the identical complete nested context/write rate card.");
         configuration["Models:gpt5:Pricing:LongContextOutputPerMillion"] = "";
-        Check(new ObservatorySettings(configuration).DefaultMode == "live"
-              && !new ObservatorySettings(configuration).AllowLive,
+        Check(new ObservatorySettings(configuration, TestArchitectures.Inline).DefaultMode == "live"
+              && !new ObservatorySettings(configuration, TestArchitectures.Inline).AllowLive,
             "An incomplete long-context rate card disables readiness even for a short request.");
         configuration["Models:gpt5:Pricing:LongContextThresholdTokens"] = "invalid";
-        Throws<InvalidOperationException>(() => new ObservatorySettings(configuration), "Invalid context threshold fails startup.");
+        Throws<InvalidOperationException>(() => new ObservatorySettings(configuration, TestArchitectures.Inline), "Invalid context threshold fails startup.");
         Throws<DomainException>(() => _ = new AgentModelRegistry(configuration).Registrations, "Runtime rejects invalid context threshold.");
         configuration["Models:gpt5:Pricing:LongContextThresholdTokens"] = "272000";
         configuration["Demo:DefaultMode"] = "invalid";
-        Throws<InvalidOperationException>(() => new ObservatorySettings(configuration), "Invalid default mode fails startup.");
+        Throws<InvalidOperationException>(() => new ObservatorySettings(configuration, TestArchitectures.Inline), "Invalid default mode fails startup.");
     }
 
     public static async Task<int> Run(string[] args)
@@ -84,19 +84,19 @@ internal static partial class ApiSelfCheck
             ["AzureOpenAI:ApiKey"] = "fixture-only-redact-this",
             ["Demo:AllowLive"] = "false", ["AllowLive"] = "true"
         }).Build();
-        var settings = new ObservatorySettings(configuration);
+        var settings = new ObservatorySettings(configuration, TestArchitectures.Inline);
         Check(!settings.LiveEnabled, "Explicit Demo:AllowLive=false overrides the legacy root opt-in.");
         var legacy = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["AllowLive"] = "true"
         }).Build();
-        Check(new ObservatorySettings(legacy).LiveEnabled, "Legacy root AllowLive works only when the canonical key is absent.");
+        Check(new ObservatorySettings(legacy, TestArchitectures.Inline).LiveEnabled, "Legacy root AllowLive works only when the canonical key is absent.");
         var canonical = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["Demo:AllowLive"] = "true", ["AllowLive"] = "false"
         }).Build();
-        Check(new ObservatorySettings(canonical).LiveEnabled, "Canonical opt-in overrides the legacy root value.");
-        Check(!new ObservatorySettings(new ConfigurationBuilder().Build()).LiveEnabled, "LIVE is disabled when both keys are absent.");
+        Check(new ObservatorySettings(canonical, TestArchitectures.Inline).LiveEnabled, "Canonical opt-in overrides the legacy root value.");
+        Check(!new ObservatorySettings(new ConfigurationBuilder().Build(), TestArchitectures.Inline).LiveEnabled, "LIVE is disabled when both keys are absent.");
         var sanitizer = new EvidenceSanitizer(configuration);
         var data = new FixtureShop();
         CheckDefaultMode(data);
@@ -395,7 +395,7 @@ internal static partial class ApiSelfCheck
             ["Models:gpt5:VerifiedAt"] = "2026-09-23",
             ["Models:gpt5:Capabilities:FunctionCalling"] = "true", ["Models:gpt5:Capabilities:MaxOutputTokens"] = "true"
         }).Build();
-        var settings = new ObservatorySettings(configuration);
+        var settings = new ObservatorySettings(configuration, TestArchitectures.Inline);
         using var store = new EvidenceStore(settings);
         var coordinator = new RunCoordinator(store, settings, new FixtureShop());
         var runtime = new CompletedBatchFixture();
@@ -437,23 +437,24 @@ internal static partial class ApiSelfCheck
         {
             var selected = new ConfigurationBuilder().AddConfiguration(configuration)
                 .AddInMemoryCollection(new Dictionary<string, string?> { ["Demo:Technology"] = technology }).Build();
-            var settings = new ObservatorySettings(selected);
+            var settings = new ObservatorySettings(selected, TestArchitectures.For(technology));
             string[] expected = technology == DemoTechnologies.A2A ? ["router", "catalog", "orders", "returns"] : ["router"];
             var capabilities = JsonSerializer.SerializeToElement(settings.Capabilities, ApiJson.Options);
             Check(capabilities.GetProperty("agentNames").EnumerateArray().Select(item => item.GetString()).SequenceEqual(expected),
                 $"{technology} API advertises only active, model-bearing agents.");
-            settings.ValidateConfiguration(new()
+            // Agent/model validation only: LIVE authorization is covered by CheckPromptConfiguration.
+            settings.ValidatePromptPreview(new()
             {
                 AgentModels = expected.ToDictionary(agent => agent, _ => "gpt6-luna", StringComparer.Ordinal)
             });
-            settings.ValidateConfiguration(new() { AgentModels = new() { ["router"] = "gpt6-astra" } });
-            Throws<ApiException>(() => settings.ValidateConfiguration(new()
+            settings.ValidatePromptPreview(new() { AgentModels = new() { ["router"] = "gpt6-astra" } });
+            Throws<ApiException>(() => settings.ValidatePromptPreview(new()
             {
                 AgentModels = new() { ["router"] = "invented-model" }
             }), $"{technology} rejects unregistered active models.");
             if (technology != DemoTechnologies.A2A)
                 foreach (var role in new[] { "catalog", "orders", "returns" })
-                    Throws<ApiException>(() => settings.ValidateConfiguration(new()
+                    Throws<ApiException>(() => settings.ValidatePromptPreview(new()
                     {
                         AgentModels = new() { [role] = "gpt5" }
                     }), $"{technology} rejects inactive {role} model overrides, even with a valid model.");
@@ -488,14 +489,14 @@ internal static partial class ApiSelfCheck
         {
             var config = new ConfigurationBuilder().AddConfiguration(configuration)
                 .AddInMemoryCollection(new Dictionary<string, string?> { ["Demo:Technology"] = technology }).Build();
-            var settings = new ObservatorySettings(config);
+            var settings = new ObservatorySettings(config, TestArchitectures.For(technology));
             var live = new RunConfiguration
             {
                 Mode = "live", PromptProfile = "bad",
                 AgentModels = new() { ["router"] = "gpt6-luna" }, PromptBlocks = new() { ConflictingStyle = true }
             };
             settings.ValidatePromptPreview(live);
-            Check(PromptLaboratory.Preview(technology, live).Agents.All(agent => agent.Instructions.Contains("<conflicting_style>", StringComparison.Ordinal)),
+            Check(TestArchitectures.Preview(technology, live).Agents.All(agent => agent.Instructions.Contains("<conflicting_style>", StringComparison.Ordinal)),
                 "LIVE preview remains side-effect-free and available without budget, deployment or LIVE opt-in.");
             ThrowsApi(() => settings.ValidateConfiguration(live), 403, "live_disabled");
             var nullBlocks = ApiJson.Deserialize<RunConfiguration>("""{"promptBlocks":null}""");
@@ -526,7 +527,8 @@ internal static partial class ApiSelfCheck
                 ThrowsApi(() => settings.ValidatePromptPreview(new() { AgentModels = new() { ["catalog"] = "gpt5" } }),
                     400, "invalid_agent_name");
             var liveEnabled = new ObservatorySettings(new ConfigurationBuilder().AddConfiguration(config)
-                .AddInMemoryCollection(new Dictionary<string, string?> { ["Demo:AllowLive"] = "true" }).Build());
+                .AddInMemoryCollection(new Dictionary<string, string?> { ["Demo:AllowLive"] = "true" }).Build(),
+                TestArchitectures.For(technology));
             liveEnabled.ValidatePromptPreview(live);
             liveEnabled.ValidatePromptPreview(live with { ApprovedBudgetUsd = 1 });
             ThrowsApi(() => liveEnabled.ValidateConfiguration(live), 422, "budget_required");

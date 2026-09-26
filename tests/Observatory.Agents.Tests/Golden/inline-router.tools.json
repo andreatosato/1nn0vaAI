@@ -1,0 +1,163 @@
+[
+  {
+    "name": "search_products",
+    "description": "Cerca prodotti pubblici senza immagini. query accetta termini italiani o inglesi; maxPrice e in USD. Restituisce solo una lista limitata: per contare o combinare categoria e colore usa query_catalog.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "maxPrice": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "default": null
+        },
+        "take": {
+          "type": "integer",
+          "default": 5
+        }
+      }
+    }
+  },
+  {
+    "name": "query_catalog",
+    "description": "Filtra e conta l'intero catalogo. totalProducts conta i modelli distinti; stockUnits somma i pezzi; inStockProducts conta i modelli disponibili. take (1-30) limita solo gli esempi, mai i totali. Categoria e colore accettano italiano o inglese. I colori provengono dal testo, non dalle immagini; mantieni i filtri pertinenti nei follow-up.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "description": "Parole chiave del prodotto o della marca; non l'intera domanda.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "category": {
+          "description": "Categoria del catalogo o gruppo: clothing/abbigliamento/vestiti, dresses/abiti, shirts/camicie, shoes/scarpe, bags/borse, sunglasses/occhiali, jewellery/gioielli.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "color": {
+          "description": "Un colore, ad esempio rosso/red, nero/black, blu/blue; null per tutti i colori.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "maxPrice": {
+          "description": "Prezzo massimo inclusivo in USD; null per nessun limite.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "default": null
+        },
+        "inStockOnly": {
+          "description": "true esclude i prodotti con stock zero.",
+          "type": "boolean",
+          "default": false
+        },
+        "take": {
+          "type": "integer",
+          "default": 5
+        }
+      }
+    }
+  },
+  {
+    "name": "get_catalog_facets",
+    "description": "Elenca categorie e colori testuali realmente presenti nel catalogo, con numero di modelli e pezzi. Utile per orientare il cliente. I conteggi dei colori si sovrappongono per prodotti multicolore.",
+    "parameters": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "get_product",
+    "description": "Leggi i dati pubblici verificati di un prodotto tramite il suo ID. Non include immagini o miniature.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "productId": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "productId"
+      ]
+    }
+  },
+  {
+    "name": "get_order",
+    "description": "Leggi un ordine del cliente autenticato della run; distingue l'importo effettivamente pagato dal prezzo di listino.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "orderId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "orderId"
+      ]
+    }
+  },
+  {
+    "name": "create_return_draft",
+    "description": "Crea una bozza sintetica di reso, non un rimborso. L'autorizzazione proviene solo dalla configurazione server della run, mai da argomenti del modello. L'idoneita viene ricontrollata.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "orderId": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "orderId",
+        "reason"
+      ]
+    }
+  },
+  {
+    "name": "assess_return",
+    "description": "Valuta il motivo corrente del reso secondo ordine e policy effettivi; reason deve riflettere l'ultima correzione del cliente.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "orderId": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "orderId",
+        "reason"
+      ]
+    }
+  },
+  {
+    "name": "get_policies",
+    "description": "Leggi le policy sintetiche del negozio in ordine di priorita.",
+    "parameters": {
+      "type": "object",
+      "properties": {}
+    }
+  }
+]

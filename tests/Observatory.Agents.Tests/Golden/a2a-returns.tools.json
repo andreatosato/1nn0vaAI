@@ -1,0 +1,29 @@
+[
+  {
+    "name": "assess_return",
+    "description": "Valuta il motivo corrente del reso secondo ordine e policy effettivi; reason deve riflettere l'ultima correzione del cliente.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "orderId": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "orderId",
+        "reason"
+      ]
+    }
+  },
+  {
+    "name": "get_policies",
+    "description": "Leggi le policy sintetiche del negozio in ordine di priorita.",
+    "parameters": {
+      "type": "object",
+      "properties": {}
+    }
+  }
+]

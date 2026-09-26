@@ -1,7 +1,7 @@
-using Observatory.Agents;
+using Observatory.AgentRuntime;
 using Observatory.Core;
 
-namespace Observatory.Api;
+namespace Observatory.RouterHost;
 
 public sealed class RemoteShopCatalog(ShopServiceClient client) : IShopCatalog
 {

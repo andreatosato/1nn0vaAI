@@ -3,11 +3,12 @@ using System.Text.RegularExpressions;
 using Microsoft.Extensions.AI;
 using Observatory.Core;
 
-namespace Observatory.Agents;
+namespace Observatory.AgentRuntime;
 
 public static class AgentPrompts
 {
-    public static string Instructions(string role, AgentRunRequest request)
+    /// <summary>Shared safety rules + the agent's own procedure + prompt profile + optional laboratory blocks.</summary>
+    public static string Instructions(string role, AgentRunRequest request, string procedure)
     {
         var safety = $"""
             Sei l'agente {role} di una demo di negozio con dati sintetici. Rispondi in italiano, con tono naturale, utile e conciso.
@@ -40,70 +41,9 @@ public static class AgentPrompts
                 safety + "\nProfilo bad: controllo intenzionalmente poco specifico. Aiuta il cliente con i tool consentiti, senza ridurre le regole obbligatorie.",
                 request.Configuration.PromptBlocks);
 
-        const string catalogProcedure = """
-            Per ricerche con filtri o conteggi usa query_catalog(query, category, color, maxPrice, inStockOnly, take).
-            query contiene parole chiave del prodotto o della marca, non tutta la domanda. Mantieni i filtri pertinenti
-            dei turni precedenti: per esempio, "solo rosse" cambia color ma non cancella categoria, budget o disponibilità.
-            Per "quanti prodotti disponibili" usa inStockOnly=true; se si chiedono i pezzi, riferisci stockUnits.
-            totalProducts, inStockProducts e stockUnits sono calcolati prima di take; products contiene solo gli esempi
-            restituiti. hasMore segnala altri risultati: non presentare la pagina come catalogo completo.
-            Usa get_catalog_facets per scoprire categorie e colori realmente presenti, non per indovinare conteggi
-            di filtri combinati. I valori productCount e stockUnits delle categorie o dei colori sono distinti;
-            i gruppi di colore possono sovrapporsi e non vanno sommati. Spiega colorBasis quando il colore è rilevante.
-            category accetta ID reali e gruppi clothing, dresses, shirts, shoes, bags, sunglasses, jewellery, anche con alias italiani.
-            Se "vestiti" indica genericamente cosa acquistare, considera clothing e chiarisci brevemente che intendi abbigliamento.
-            Se serve un tipo preciso di abito e il contesto non lo identifica, chiedi quale: non scegliere un sottotipo a caso.
-            search_products resta disponibile per semplici elenchi, ma non prova il totale. Usa get_product per un ID pubblico esplicito.
-            Riferisci ID, titolo, prezzo, valuta e scorte soltanto come restituiti. Il colore testuale non certifica varianti viste in foto.
-            Non allargare silenziosamente i filtri se non trovi risultati. GET /catalog è solo per metadata/UI, non è un tool del modello.
-            """;
-        var procedure = role switch
-        {
-            AgentNames.Router when request.Technology == DemoTechnologies.A2A => """
-                Delega ricerche, prodotti, colori, scorte e conteggi a catalog_agent; ordini, importi pagati e stato a orders_agent;
-                policy e ammissibilità a returns_agent. Sono agenti invocati come tool: il controllo torna a te, non è un passaggio di consegne.
-                Invia allo specialista la domanda corrente con i filtri pertinenti già chiariti nella conversazione, senza inventarne altri.
-                Non contare gli esempi restituiti come totale: conserva la distinzione fra prodotti, pezzi e pagina dei risultati.
-                Per i resi identifica prima l'ordine, poi valuta il motivo più recente. Una correzione esplicita sostituisce il motivo precedente.
-                Chiedi una bozza a orders_agent solo per una richiesta esplicita, dopo una valutazione ammissibile e con conferma server abilitata.
-                Ricomponi le risposte degli specialisti senza perdere ID prodotto, prezzi, valuta, policy o condizioni rilevanti.
-                """,
-            AgentNames.Router => """
-                Sei l'unico agente con un modello. I tuoi tool di dominio chiamano tre servizi HTTP esterni, non altri agenti.
-                Orders: usa get_order con l'ID ordine esplicito e il cliente vincolato dal server; distingui pagato e listino.
-                Returns: usa assess_return con l'ID ordine esplicito e l'ultimo motivo; get_policies per spiegare il testo delle policy.
-                Per i resi identifica prima l'ordine e poi valuta l'ammissibilità. Una correzione sostituisce il motivo precedente.
-                Usa create_return_draft solo per una richiesta esplicita di bozza, con valutazione ammissibile e conferma server.
-                Orders ricontrolla ammissibilità e consenso; non esegue pagamenti o rimborsi.
-                Ricomponi i fatti verificati senza perdere ID prodotto, prezzi, valuta, policy o condizioni rilevanti.
-                """ + "\n" + catalogProcedure,
-            AgentNames.Catalog => catalogProcedure,
-            AgentNames.Orders => """
-                Usa get_order con l'ID ordine esplicito e il cliente vincolato dal server.
-                Distingui il prezzo di listino dall'importo pagato, conservando valuta e data di consegna.
-                Usa create_return_draft solo per una richiesta esplicita di bozza con autorizzazione server confermata.
-                Il tool ricontrolla l'ammissibilità: dichiara creata la bozza soltanto dopo un risultato riuscito.
-                """,
-            AgentNames.Returns => """
-                Usa assess_return con l'ID ordine esplicito e il motivo corrente, comprese le ultime correzioni.
-                Usa get_policies se serve chiarire il testo. Non ricavare una policy dalla memoria.
-                Spiega priorità e ID della policy, tempo dalla consegna, ammissibilità, chiarimenti e importo del rimborso
-                esattamente come restituiti. Una valutazione non crea una bozza e non esegue alcun rimborso.
-                """,
-            _ => throw new ArgumentOutOfRangeException(nameof(role))
-        };
         var profile = request.Configuration.PromptProfile is "gpt5" or "gpt6"
             ? $"\nProfilo {request.Configuration.PromptProfile}: CONTROLLO NON OTTIMIZZATO. Non è stata fornita una guida verificata specifica per il modello; nessuna compatibilità o prestazione particolare è promessa."
             : "\nProfilo good: controllo generico basato sui fatti dei tool, non un'ottimizzazione specifica per un modello.";
-        if (role == AgentNames.Router && request.Technology == DemoTechnologies.Skills)
-            procedure = """
-                Sei l'unico agente con un modello. Catalog, Orders e Returns sono servizi HTTP esterni, non agenti a cui delegare.
-                Prima di usare i tool di un servizio, individua e carica la sua skill nativa: shop-catalog, shop-orders o shop-returns.
-                Carica progressivamente le risorse di riferimento quando servono. Queste skill contengono le procedure di integrazione;
-                i tool registrati eseguono chiamate HTTP business autenticate e rimangono la fonte autorevole dei fatti.
-                Per ricerche, filtri, colori o conteggi carica shop-catalog; conserva i vincoli pertinenti già indicati nella conversazione.
-                Non usare delega A2A. Leggi solo i pacchetti fidati distribuiti con il codice: niente download dinamici o esecuzione di script.
-                """;
         return PromptLaboratory.Append(safety + "\n" + procedure + profile, request.Configuration.PromptBlocks);
     }
 

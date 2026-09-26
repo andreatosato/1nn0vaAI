@@ -5,7 +5,7 @@ using System.Text.Json.Nodes;
 using Microsoft.Data.Sqlite;
 using Observatory.Core;
 
-namespace Observatory.Api;
+namespace Observatory.RouterHost;
 
 public sealed class EvidenceStore : IDisposable
 {

@@ -1,8 +1,8 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { modelPromptGuidance } from '../modelGuidance';
-import { ModelGuidance } from './ModelGuidance';
+import { modelPromptGuidance } from '../../src/modelGuidance';
+import { ModelGuidance } from '../../src/components/ModelGuidance';
 
 describe('consigli documentali separati dai modelli eseguibili', () => {
   it('offre tutte le famiglie e fonti OpenAI verificate, senza chiamate di rete', async () => {

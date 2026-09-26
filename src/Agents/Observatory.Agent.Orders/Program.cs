@@ -1,8 +1,7 @@
-using Observatory.AgentHost;
-using Observatory.Agents;
-using Observatory.Orders.Api;
+using Observatory.Agent.Orders;
+using Observatory.SpecialistHost;
 
-var builder = AgentHostApplication.CreateBuilder(args);
-builder.Services.AddSingleton<ISpecialistAgent, OrdersAgent>();
-var app = AgentHostApplication.Build(builder, AgentNames.Orders, OrdersEndpoints.MapOrders);
-await app.RunAsync();
+// Orders specialist agent: its own process, model, instructions and tools. Invoked by the A2A router.
+var builder = SpecialistHostApplication.CreateBuilder<OrdersAgent>(args);
+var app = SpecialistHostApplication.Build(builder);
+app.Run();

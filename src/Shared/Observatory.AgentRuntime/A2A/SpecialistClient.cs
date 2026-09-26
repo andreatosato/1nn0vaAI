@@ -1,29 +1,33 @@
-using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using A2A;
 using Observatory.Core;
 
-namespace Observatory.Agents;
+namespace Observatory.AgentRuntime;
 
-public sealed class A2ATransport(AgentModelRegistry registry, AgentTransportAccess access) : IDisposable
+/// <summary>
+/// Router-side A2A client: discovers a specialist through its agent card, sends one message and imports the
+/// specialist's evidence (model calls, tools, costs) from the reply metadata. The model only sees the answer text.
+/// </summary>
+public sealed class SpecialistClient(IHttpClientFactory httpClients)
 {
-    public const string MetadataKey = "observatory.run";
+    public const string HttpClientName = "a2a";
+    public const string RunMetadataKey = "observatory.run";
+    public const string EvidenceMetadataKey = "observatory.evidence";
+    public const string ErrorMetadataKey = "observatory.error";
     public const string SdkVersion = "0.3.4-preview";
-    private readonly HttpClient _http = access.CreateHttpClient();
-    private readonly HttpClient _unboundedHttp = access.CreateHttpClient(Timeout.InfiniteTimeSpan);
+
+    /// <summary>Logical Aspire resource name of a specialist agent, resolved by service discovery.</summary>
+    public static Uri AgentEndpoint(string role) => new($"http://agent-{role}/");
 
     public async Task<string> InvokeAsync(RunState state, string role, string query, CancellationToken cancellationToken)
     {
-        var baseUri = registry.ServiceEndpoint(role);
-        access.ValidateEndpoint(baseUri);
-        var http = state.Request.Configuration.UnboundedExecution ? _unboundedHttp : _http;
         if (!state.Request.Configuration.UnboundedExecution && state.RemainingCalls <= 0)
             throw new DomainException("model_call_limit", "Nessuna chiamata disponibile per lo specialista remoto.");
-        var path = $"a2a/{role}";
-        var endpoint = new Uri(baseUri, path);
-        var cardPath = $"/{path}/.well-known/agent-card.json";
-        var cardUrl = new Uri(baseUri.AbsoluteUri.TrimEnd('/') + cardPath).AbsoluteUri;
+        var http = httpClients.CreateClient(HttpClientName);
+        var baseUri = AgentEndpoint(role);
+        var cardPath = $"/a2a/{role}/.well-known/agent-card.json";
+        var cardUrl = new Uri(baseUri, cardPath).AbsoluteUri;
         await state.EmitAsync("protocol.request", role, "A2A agent-card discovery.", new { protocol = "A2A", sdk = SdkVersion, method = "GET", url = cardUrl }).ConfigureAwait(false);
         AgentCard card;
         try
@@ -34,17 +38,17 @@ public sealed class A2ATransport(AgentModelRegistry registry, AgentTransportAcce
         {
             await state.EmitAsync("protocol.response", role, "A2A discovery fallita; nessun fallback.", new
             {
-                protocol = "A2A",
-                url = cardUrl,
+                protocol = "A2A", url = cardUrl,
                 status = error is OperationCanceledException ? "cancelled" : "failed",
-                error = access.Redact(error.Message)
+                error = SafeTelemetry.Text(error.Message)
             }).ConfigureAwait(false);
             if (error is OperationCanceledException) throw;
-            throw new DomainException("a2a_discovery_failed", $"Discovery A2A non riuscita: {access.Redact(error.Message)}");
+            throw new DomainException("a2a_discovery_failed", $"Discovery A2A non riuscita: {SafeTelemetry.Text(error.Message)}");
         }
-        if (!Uri.TryCreate(card.Url, UriKind.Absolute, out var advertised) || advertised != endpoint)
-            throw new DomainException("a2a_card_mismatch", "La card A2A pubblicizza un endpoint diverso da quello configurato; nessun redirect implicito.");
+        if (!Uri.TryCreate(card.Url, UriKind.Absolute, out var endpoint) || !endpoint.AbsolutePath.Equals($"/a2a/{role}", StringComparison.Ordinal))
+            throw new DomainException("a2a_card_mismatch", "La card A2A pubblicizza un endpoint diverso dallo specialista richiesto.");
         await state.EmitAsync("protocol.response", role, "A2A agent card verificata.", new { card.Name, card.Url, card.ProtocolVersion, sdk = SdkVersion }).ConfigureAwait(false);
+
         var invocationId = Guid.NewGuid().ToString("N");
         var remoteRequest = state.Request with
         {
@@ -54,7 +58,6 @@ public sealed class A2ATransport(AgentModelRegistry registry, AgentTransportAcce
                 ApprovedBudgetUsd = state.RemainingBudget
             }
         };
-        var envelope = new RemoteInvocation(invocationId, remoteRequest);
         var parameters = new MessageSendParams
         {
             Message = new AgentMessage
@@ -64,43 +67,38 @@ public sealed class A2ATransport(AgentModelRegistry registry, AgentTransportAcce
                 ContextId = state.Request.ConversationId,
                 Parts = [new TextPart { Text = query }]
             },
-            Metadata = new() { [MetadataKey] = JsonSerializer.SerializeToElement(envelope, AgentJson.Options) }
+            Metadata = new() { [RunMetadataKey] = JsonSerializer.SerializeToElement(new RemoteInvocation(invocationId, remoteRequest), AgentJson.Options) }
         };
         await state.EmitAsync("protocol.request", role, "A2A message/send (official SDK JSON-RPC).", new
         {
-            protocol = "A2A",
-            sdk = SdkVersion,
-            method = "message/send",
-            url = endpoint.AbsoluteUri,
-            invocationId,
-            message = SafeTelemetry.Text(query)
+            protocol = "A2A", sdk = SdkVersion, method = "message/send", url = endpoint.AbsoluteUri,
+            invocationId, message = SafeTelemetry.Text(query)
         }).ConfigureAwait(false);
-        A2AResponse? response = null;
-        Exception? failure = null;
+
+        AgentMessage message;
         try
         {
-            response = await new A2AClient(endpoint, http).SendMessageAsync(parameters, cancellationToken).ConfigureAwait(false);
-            await state.EmitAsync("protocol.response", role, "A2A risposta dominio ricevuta.", new
-            {
-                protocol = "A2A",
-                invocationId,
-                payload = SafeTelemetry.Snapshot(response)
-            }).ConfigureAwait(false);
+            var response = await new A2AClient(endpoint, http).SendMessageAsync(parameters, cancellationToken).ConfigureAwait(false);
+            message = response as AgentMessage
+                ?? throw new DomainException("a2a_unexpected_response", "L'host sincrono deve restituire un AgentMessage A2A.");
         }
-        catch (Exception error)
+        catch (Exception error) when (error is not (OperationCanceledException or DomainException))
         {
-            var safeMessage = access.Redact(error.Message);
-            failure = safeMessage == error.Message ? error : new DomainException("a2a_transport_failed", safeMessage);
-            await state.EmitAsync("protocol.response", role, "A2A richiesta fallita; nessun fallback.", new { invocationId, error = safeMessage }).ConfigureAwait(false);
+            await state.EmitAsync("protocol.response", role, "A2A richiesta fallita; nessun fallback.", new { invocationId, error = SafeTelemetry.Text(error.Message) }).ConfigureAwait(false);
+            throw new DomainException("a2a_transport_failed", SafeTelemetry.Text(error.Message));
         }
-        finally
+
+        var evidence = await ImportEvidenceAsync(state, message).ConfigureAwait(false);
+        await state.EmitAsync("protocol.response", role, "A2A risposta dominio ricevuta.", new
         {
-            // Telemetry uses a separate protected channel, never A2A message parts or tool results.
-            await ImportTelemetryAsync(baseUri, state, role, invocationId).ConfigureAwait(false);
+            protocol = "A2A", invocationId, importedEvents = evidence,
+            parts = message.Parts.Count
+        }).ConfigureAwait(false);
+        if (message.Metadata?.TryGetValue(ErrorMetadataKey, out var failure) == true)
+        {
+            var error = failure.Deserialize<SpecialistError>(AgentJson.Options)!;
+            throw new DomainException(error.Code, error.Message);
         }
-        if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
-        if (response is not AgentMessage message)
-            throw new DomainException("a2a_unexpected_response", "L'host sincrono deve restituire un AgentMessage A2A.");
         var text = string.Concat(message.Parts.OfType<TextPart>().Select(part => part.Text));
         var result = JsonSerializer.Deserialize<AgentExecutionResult>(text, AgentJson.Options)
             ?? throw new DomainException("a2a_invalid_domain", "Risposta dominio A2A non valida.");
@@ -108,54 +106,27 @@ public sealed class A2ATransport(AgentModelRegistry registry, AgentTransportAcce
         return result.Answer;
     }
 
-    private async Task ImportTelemetryAsync(Uri baseUri, RunState state, string role, string invocationId)
+    /// <summary>Reads the specialist's own prompt preview; each agent owns its instructions.</summary>
+    public async Task<AgentPromptPreview> PreviewAsync(string role, RunConfiguration configuration, CancellationToken cancellationToken)
     {
-        var uri = new Uri(baseUri, $"telemetry/{Uri.EscapeDataString(state.Request.RunId)}?invocationId={invocationId}");
-        await state.EmitAsync("protocol.request", role, "Raccolta telemetria separata dal contesto del modello.", new
-        {
-            protocol = access.AllowRemote ? "internal-authenticated-telemetry" : "internal-loopback-telemetry",
-            method = "GET",
-            url = uri.AbsoluteUri
-        }).ConfigureAwait(false);
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        try
-        {
-            while (true)
-            {
-                using var httpResponse = await _http.GetAsync(uri, timeout.Token).ConfigureAwait(false);
-                if (httpResponse.StatusCode != HttpStatusCode.NotFound)
-                {
-                    httpResponse.EnsureSuccessStatusCode();
-                    var batch = await httpResponse.Content.ReadFromJsonAsync<RemoteTelemetryBatch>(AgentJson.Options, timeout.Token).ConfigureAwait(false)
-                        ?? throw new DomainException("a2a_telemetry_missing", "Telemetria remota mancante.");
-                    if (batch.RunId != state.Request.RunId || batch.InvocationId != invocationId)
-                        throw new DomainException("a2a_telemetry_mismatch", "Correlazione della telemetria remota non valida.");
-                    foreach (var item in batch.Events)
-                        await state.PublishAsync(item, imported: true).ConfigureAwait(false);
-                    if (batch.Completed)
-                    {
-                        await state.EmitAsync("protocol.response", role, "Tutti gli eventi remoti importati una sola volta.", new
-                        {
-                            protocol = access.AllowRemote ? "internal-authenticated-telemetry" : "internal-loopback-telemetry",
-                            invocationId,
-                            eventCount = batch.Events.Count,
-                            complete = true
-                        }).ConfigureAwait(false);
-                        return;
-                    }
-                }
-                await Task.Delay(50, timeout.Token).ConfigureAwait(false);
-            }
-        }
-        catch (Exception error) when (error is not DomainException)
-        {
-            throw new DomainException("a2a_telemetry_incomplete", $"La raccolta della telemetria remota non è completa: {access.Redact(error.Message)}");
-        }
+        using var response = await httpClients.CreateClient(HttpClientName)
+            .PostAsJsonAsync(new Uri(AgentEndpoint(role), "prompts/preview"), configuration, AgentJson.Options, cancellationToken)
+            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<AgentPromptPreview>(AgentJson.Options, cancellationToken).ConfigureAwait(false)
+            ?? throw new DomainException("a2a_invalid_preview", $"Anteprima del prompt di {role} non valida.");
     }
 
-    public void Dispose()
+    private static async Task<int> ImportEvidenceAsync(RunState state, AgentMessage message)
     {
-        _http.Dispose();
-        _unboundedHttp.Dispose();
+        if (message.Metadata?.TryGetValue(EvidenceMetadataKey, out var evidence) != true)
+            throw new DomainException("a2a_evidence_missing", "La risposta A2A non contiene le evidenze dello specialista.");
+        var events = evidence.Deserialize<RunEvent[]>(AgentJson.Options) ?? [];
+        foreach (var item in events)
+            await state.PublishAsync(item, imported: true).ConfigureAwait(false);
+        return events.Length;
     }
 }
+
+/// <summary>Domain failure reported by a specialist together with its evidence.</summary>
+public sealed record SpecialistError(string Code, string Message);

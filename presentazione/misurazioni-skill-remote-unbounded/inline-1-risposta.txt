@@ -1,0 +1,10 @@
+Ecco ciò che ho verificato per l’ordine ORD-1042:
+
+- Consegna: 2026-09-05.
+- Reso per difetto al primo utilizzo: secondo la policy POL-DEFECT-60, un articolo difettoso è restituibile entro 60 giorni dalla consegna anche se outlet. Sei a 18 giorni, quindi rientra nella finestra. Nota: la verifica automatica di ammissibilità non è riuscita ora; posso riprovare su tua richiesta.
+- Importo previsto: fino a 19,99 USD (AmountPaid), in linea con la policy POL-REFUND-PAID; il listino (29,99 USD) non determina il rimborso.
+
+Suggerimento camicia sotto 40 USD (disponibile):
+- ID 86 — Man Short Sleeve Shirt — 19,99 USD.
+
+Se vuoi, posso ripetere la valutazione di ammissibilità o, se confermi, predisporre una bozza di reso (senza eseguire alcun rimborso).

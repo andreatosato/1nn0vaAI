@@ -3,26 +3,15 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <OutputType>Library</OutputType>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <ContainerRepository>ai-observatory-api</ContainerRepository>
-    <ContainerImageTag>dev</ContainerImageTag>
-    <ContainerUser>app</ContainerUser>
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Remove="appsettings*.json;Properties\launchSettings.json;Observatory.Api.http" />
-    <ContainerPort Include="8080" />
-    <ContainerEnvironmentVariable Include="ASPNETCORE_URLS" Value="http://+:8080" />
-    <Content Update="**\appsettings.Local.json" CopyToPublishDirectory="Never" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.8" />
+    <ProjectReference Include="..\Observatory.AgentRuntime\Observatory.AgentRuntime.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="Observatory.Api.Tests" />
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.8" />
-    <ProjectReference Include="..\Observatory.Core\Observatory.Core.csproj" />
-    <ProjectReference Include="..\Observatory.Agents\Observatory.Agents.csproj" />
-    <ProjectReference Include="..\Observatory.ServiceDefaults\Observatory.ServiceDefaults.csproj" />
+    <InternalsVisibleTo Include="Observatory.RouterHost.Tests" />
   </ItemGroup>
 
 </Project>

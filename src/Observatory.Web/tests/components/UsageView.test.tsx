@@ -1,8 +1,8 @@
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { conversation, modelCall, run, settings } from '../test/fixtures';
-import { money } from '../lib/format';
-import { UsageView } from './UsageView';
+import { conversation, modelCall, run, settings } from '../support/fixtures';
+import { money } from '../../src/lib/format';
+import { UsageView } from '../../src/components/UsageView';
 
 describe('riepilogo token e costi della conversazione', () => {
   it('somma token e prezzi di tutti i run della conversazione e li mostra per agente', () => {

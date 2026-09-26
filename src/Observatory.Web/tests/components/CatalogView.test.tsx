@@ -1,8 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { product } from '../test/fixtures';
-import { CatalogView } from './CatalogView';
+import { product } from '../support/fixtures';
+import { CatalogView } from '../../src/components/CatalogView';
 
 describe('catalogo separato dal widget', () => {
   it('filtra il catalogo già caricato e prepara una domanda soltanto al click', async () => {

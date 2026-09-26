@@ -1,0 +1,47 @@
+[
+  {
+    "name": "catalog_agent",
+    "description": "Delega al servizio Catalog tramite A2A: ricerca, dettagli, conteggi completi di modelli e pezzi, categorie e colori testuali. Includi i filtri correnti e il contesto utile del follow-up.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ]
+    }
+  },
+  {
+    "name": "orders_agent",
+    "description": "Delega allo specialista orders tramite A2A ufficiale su HTTP. Restituisce solo fatti di dominio verificati.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ]
+    }
+  },
+  {
+    "name": "returns_agent",
+    "description": "Delega allo specialista returns tramite A2A ufficiale su HTTP. Restituisce solo fatti di dominio verificati.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ]
+    }
+  }
+]

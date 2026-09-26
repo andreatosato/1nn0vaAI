@@ -10,10 +10,10 @@ export const demoMetadata: Record<Technology, {
     topology: 'Router → A2A → agenti remoti Catalog / Orders / Returns. Ogni agente esegue le proprie chiamate modello.',
   },
   skills: {
-    title: 'Agent Skills', subtitle: 'Skill di integrazione nel router', number: '02', accent: 'blue',
-    description: 'Un solo router carica le skill dei tre servizi e ne chiama le API business via HTTP, senza delegare ad altri agenti.',
-    detail: 'Skills · un router, skill native e tre servizi HTTP',
-    topology: 'Router → skill shop-catalog / shop-orders / shop-returns → API business HTTP. I servizi non eseguono modelli in questa variante.',
+    title: 'Agent Skills', subtitle: 'Specialisti remoti come skill', number: '02', accent: 'blue',
+    description: 'Un solo router scarica dai siti skill-* le istruzioni dei tre specialisti remoti e chiama lui le API business via HTTP, senza delegare.',
+    detail: 'Skills · un router, tre siti skill remoti e tre servizi HTTP',
+    topology: 'Router → skill catalog / orders / returns scaricate da skill-catalog / skill-orders / skill-returns → API business HTTP. Solo il router esegue un modello.',
   },
   inline: {
     title: 'Inline', subtitle: 'Istruzioni di integrazione nel prompt', number: '03', accent: 'teal',
@@ -24,9 +24,9 @@ export const demoMetadata: Record<Technology, {
 };
 
 export const serviceMetadata: Record<Service, { name: string; description: string; skill: string }> = {
-  catalog: { name: 'Catalog', description: 'Prodotti e fatti del catalogo pubblico.', skill: 'shop-catalog' },
-  orders: { name: 'Orders', description: 'Ordini, consegna, importo pagato e bozze di reso confermate.', skill: 'shop-orders' },
-  returns: { name: 'Returns', description: 'Policy e valutazione del reso; non crea bozze o rimborsi.', skill: 'shop-returns' },
+  catalog: { name: 'Catalog', description: 'Prodotti e fatti del catalogo pubblico.', skill: 'catalog' },
+  orders: { name: 'Orders', description: 'Ordini, consegna, importo pagato e bozze di reso confermate.', skill: 'orders' },
+  returns: { name: 'Returns', description: 'Policy e valutazione del reso; non crea bozze o rimborsi.', skill: 'returns' },
 };
 
 export const pages = [

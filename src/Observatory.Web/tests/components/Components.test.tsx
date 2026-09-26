@@ -1,22 +1,23 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { ConfigurationPanel, initialSettings, reconcileSettings } from './ConfigurationPanel';
-import { JsonBlock } from './Common';
-import { ProductCard, ResultProducts } from './ProductCards';
-import { ExperimentPanel } from './ExperimentPanel';
-import { TraceView } from './TraceView';
-import { configuration, configurationFor, event, jsonResponse, liveConfigurationFor, modelCall, product, run, scenario, settings } from '../test/fixtures';
-import { ObservatoryApi } from '../lib/api';
+import { ConfigurationPanel, initialSettings, reconcileSettings } from '../../src/components/ConfigurationPanel';
+import { JsonBlock } from '../../src/components/Common';
+import { ProductCard, ResultProducts } from '../../src/components/ProductCards';
+import { ExperimentPanel } from '../../src/components/ExperimentPanel';
+import { TraceView } from '../../src/components/TraceView';
+import { configuration, configurationFor, event, jsonResponse, liveConfigurationFor, modelCall, product, run, scenario, settings } from '../support/fixtures';
+import { ObservatoryApi } from '../../src/lib/api';
 
 const inlineApi = new ObservatoryApi('inline');
 
 describe('interfaccia accessibile e dati non eseguibili', () => {
   it('LIVE è disabilitato dal server e il nome modello proviene da config', () => {
     render(<ConfigurationPanel api={inlineApi} server={configuration} settings={settings} onChange={vi.fn()} disabled={false} />);
-    expect(screen.getByRole('option', { name: /LIVE · disabilitato/ })).toBeDisabled();
+    expect(screen.getByRole('status')).toHaveTextContent('LIVE non è pronto');
+    for (const option of screen.getAllByRole('option', { name: 'GPT-5 · non disponibile in LIVE' })) expect(option).toBeDisabled();
     expect(screen.getByRole('combobox', { name: 'Profilo modello' })).toHaveValue('gpt5');
-    expect(screen.getAllByRole('option', { name: 'GPT-6 Luna' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('option', { name: /GPT-6 Luna/ }).length).toBeGreaterThan(0);
     expect(initialSettings(configuration)?.mode).toBe('live');
     expect(initialSettings({ ...configuration, allowLive: true, defaultMode: 'live' })?.mode).toBe('live');
     expect(initialSettings({ ...configuration, allowLive: false, defaultMode: 'live' })?.mode).toBe('live');
@@ -25,7 +26,7 @@ describe('interfaccia accessibile e dati non eseguibili', () => {
   it('serializza gli override con i nomi agente minuscoli richiesti dal runtime', async () => {
     const user = userEvent.setup();
     const change = vi.fn();
-    render(<ConfigurationPanel api={inlineApi} server={configuration} settings={settings} onChange={change} disabled={false} />);
+    render(<ConfigurationPanel api={inlineApi} server={liveConfigurationFor('inline')} settings={settings} onChange={change} disabled={false} />);
     await user.click(screen.getByText('Modelli per agente, limiti ed esempi di prompt'));
     await user.selectOptions(screen.getByRole('combobox', { name: 'Router' }), 'gpt6-luna');
     expect(change).toHaveBeenCalledWith(expect.objectContaining({ agentModels: { router: 'gpt6-luna' } }));
@@ -101,7 +102,7 @@ describe('interfaccia accessibile e dati non eseguibili', () => {
   it('A2A configura gli agenti remoti e rispetta gli agenti abilitati da capabilities', async () => {
     const user = userEvent.setup();
     const change = vi.fn();
-    const server = configurationFor('a2a');
+    const server = liveConfigurationFor('a2a');
     const { rerender } = render(<ConfigurationPanel api={new ObservatoryApi('a2a')} server={server} settings={settings} onChange={change} disabled={false} />);
     await user.click(screen.getByText('Modelli per agente, limiti ed esempi di prompt'));
     for (const name of ['Router', 'Catalog', 'Orders', 'Returns']) expect(screen.getByRole('combobox', { name })).toBeInTheDocument();
@@ -132,9 +133,9 @@ describe('interfaccia accessibile e dati non eseguibili', () => {
     const user = userEvent.setup();
     const change = vi.fn();
     const stale = { ...settings, agentModels: { router: 'gpt5', catalog: 'gpt6-sol', returns: 'gpt6-luna' } };
-    const { rerender } = render(<ConfigurationPanel api={new ObservatoryApi('a2a')} server={configurationFor('a2a')} settings={stale} onChange={change} disabled={false} />);
+    const { rerender } = render(<ConfigurationPanel api={new ObservatoryApi('a2a')} server={liveConfigurationFor('a2a')} settings={stale} onChange={change} disabled={false} />);
     await user.click(screen.getByText('Modelli per agente, limiti ed esempi di prompt'));
-    rerender(<ConfigurationPanel api={inlineApi} server={configurationFor('inline')} settings={stale} onChange={change} disabled={false} />);
+    rerender(<ConfigurationPanel api={inlineApi} server={liveConfigurationFor('inline')} settings={stale} onChange={change} disabled={false} />);
     await user.selectOptions(screen.getByRole('combobox', { name: 'Router' }), 'gpt6-astra');
     expect(change).toHaveBeenLastCalledWith(expect.objectContaining({ agentModels: { router: 'gpt6-astra' } }));
   });
@@ -196,7 +197,7 @@ describe('interfaccia accessibile e dati non eseguibili', () => {
     render(<ExperimentPanel api={new ObservatoryApi('inline')} server={configuration} scenarios={[scenario]} settings={experimentSettings} disabled={false} onCompleted={vi.fn()} />);
     await waitFor(() => expect(screen.getByRole('checkbox', { name: /GPT-5/ })).toBeChecked());
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: 'Calcola piano · dry run' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Calcola piano · dry run' })).toBeEnabled();
     await user.click(screen.getByRole('button', { name: 'Astra / Sol ↔ Luna' }));
     await user.click(screen.getByRole('button', { name: /Calcola piano/ }));
     await screen.findByRole('heading', { name: 'Piano restituito dal backend' });

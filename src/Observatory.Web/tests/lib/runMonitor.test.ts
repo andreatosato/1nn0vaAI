@@ -1,10 +1,10 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { RunRecord } from '../contracts';
-import { ObservatoryApi } from './api';
-import { observeRun } from './runMonitor';
-import type { MonitorSnapshot } from './runMonitor';
-import { event, FakeEventSource, jsonResponse, run } from '../test/fixtures';
+import type { RunRecord } from '../../src/contracts';
+import { ObservatoryApi } from '../../src/lib/api';
+import { observeRun } from '../../src/lib/runMonitor';
+import type { MonitorSnapshot } from '../../src/lib/runMonitor';
+import { event, FakeEventSource, jsonResponse, run } from '../support/fixtures';
 
 describe('monitor run: reconnect e polling GET-only', () => {
   beforeEach(() => {
@@ -66,5 +66,33 @@ describe('monitor run: reconnect e polling GET-only', () => {
     expect(snapshots.at(-1)?.connection).toBe('error');
     expect(fetchMock).toHaveBeenCalledTimes(1);
     monitor.dispose();
+  });
+
+  it.each([false, true])('recupera la risposta finale anche se SSE resta aperto senza eventi (reconnect: %s)', async (reconnect) => {
+    vi.useFakeTimers();
+    let current = run();
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async () => jsonResponse(current));
+    vi.stubGlobal('fetch', fetchMock);
+    const snapshots: MonitorSnapshot[] = [];
+    const complete = vi.fn(async () => {});
+    const monitor = observeRun(new ObservatoryApi('inline'),
+      { runId: 'run-1', conversationId: 'conversation-1', watch: true },
+      (snapshot) => snapshots.push(snapshot), complete);
+    try {
+      await monitor.refresh();
+      if (reconnect) monitor.reconnect();
+      current = run({ status: 'completed', result: { answer: 'Risposta senza evento finale', productIds: [], sources: [] } });
+      await vi.advanceTimersByTimeAsync(2500);
+      expect(snapshots.at(-1)?.record?.result?.answer).toBe('Risposta senza evento finale');
+      expect(complete).toHaveBeenCalledTimes(1);
+      expect(FakeEventSource.instances.at(-1)?.closed).toBe(true);
+      expect(fetchMock.mock.calls.every(([, init]) => init?.method === 'GET')).toBe(true);
+      const reads = fetchMock.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(10000);
+      expect(fetchMock).toHaveBeenCalledTimes(reads);
+    } finally {
+      monitor.dispose();
+      vi.useRealTimers();
+    }
   });
 });

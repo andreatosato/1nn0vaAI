@@ -4,25 +4,21 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Observatory.Core;
 
-namespace Observatory.Agents;
+namespace Observatory.AgentRuntime;
 
-public sealed class ShopServiceClient(AgentModelRegistry registry, AgentTransportAccess access) : IShopOperations, IDisposable
+/// <summary>
+/// HTTP client of the three shop business APIs. Logical names such as http://shop-catalog are resolved by Aspire service discovery.
+/// </summary>
+public sealed class ShopServiceClient(IHttpClientFactory httpClients) : IShopOperations
 {
-    public const string CustomerHeader = "X-Observatory-Customer-Id";
-    public const string ConfirmationHeader = "X-Observatory-Confirm-Action";
+    public const string HttpClientName = "shop";
     private static readonly JsonSerializerOptions ResponseJson = new(AgentJson.Options)
     {
         RespectRequiredConstructorParameters = true,
         RespectNullableAnnotations = true
     };
-    private readonly HttpClient _http = access.CreateHttpClient();
 
-    public Uri ServiceEndpoint(string role)
-    {
-        var endpoint = registry.ServiceEndpoint(role);
-        access.ValidateEndpoint(endpoint);
-        return endpoint;
-    }
+    public Uri ServiceEndpoint(string role) => new($"http://shop-{role}/");
 
     public Task<CatalogSnapshot> GetCatalogAsync(CancellationToken token = default) =>
         SendAsync<CatalogSnapshot>(AgentNames.Catalog, HttpMethod.Get, "catalog", null, null, false, token);
@@ -102,12 +98,12 @@ public sealed class ShopServiceClient(AgentModelRegistry registry, AgentTranspor
     {
         var uri = new Uri(ServiceEndpoint(role), path);
         using var request = new HttpRequestMessage(method, uri);
-        if (customerId is not null) request.Headers.Add(CustomerHeader, customerId);
-        if (confirmed) request.Headers.Add(ConfirmationHeader, "true");
+        if (customerId is not null) request.Headers.Add(ShopHttpContract.CustomerHeader, customerId);
+        if (confirmed) request.Headers.Add(ShopHttpContract.ConfirmationHeader, "true");
         if (body is not null) request.Content = JsonContent.Create(body, options: AgentJson.Options);
         try
         {
-            using var response = await _http.SendAsync(request, token).ConfigureAwait(false);
+            using var response = await httpClients.CreateClient(HttpClientName).SendAsync(request, token).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
                 // Only known domain rejections may become recoverable tool errors. Transport/auth failures stop the run.
@@ -116,7 +112,7 @@ public sealed class ShopServiceClient(AgentModelRegistry registry, AgentTranspor
                 {
                     var problem = await response.Content.ReadFromJsonAsync<ServiceProblem>(ResponseJson, token).ConfigureAwait(false);
                     if (problem is not null && IsDomainRejection(problem.Code, response.StatusCode))
-                        throw new DomainException(problem.Code!, access.Redact(problem.Detail ?? problem.Code));
+                        throw new DomainException(problem.Code!, SafeTelemetry.Text(problem.Detail ?? problem.Code));
                 }
                 throw new ShopServiceException($"Il servizio {role} ha restituito HTTP {(int)response.StatusCode}; nessun fallback locale.");
             }
@@ -125,7 +121,7 @@ public sealed class ShopServiceClient(AgentModelRegistry registry, AgentTranspor
         }
         catch (Exception error) when (error is HttpRequestException or JsonException or NotSupportedException)
         {
-            throw new ShopServiceException($"Chiamata HTTP al servizio {role} non riuscita: {access.Redact(error.Message)}", error);
+            throw new ShopServiceException($"Chiamata HTTP al servizio {role} non riuscita: {SafeTelemetry.Text(error.Message)}", error);
         }
         catch (OperationCanceledException error) when (!token.IsCancellationRequested)
         {
@@ -142,8 +138,6 @@ public sealed class ShopServiceClient(AgentModelRegistry registry, AgentTranspor
         ("return_not_eligible" or "return_not_allowed", HttpStatusCode.UnprocessableEntity) => true,
         _ => false
     };
-
-    public void Dispose() => _http.Dispose();
 
     private sealed record ServiceProblem(string? Code, string? Detail);
 }

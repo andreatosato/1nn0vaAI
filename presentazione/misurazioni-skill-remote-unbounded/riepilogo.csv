@@ -1,0 +1,7 @@
+﻿"architecture";"repetition";"status";"error";"run_id";"calls";"agents";"input";"cached";"cache_write";"output";"reasoning";"duration_ms";"cost_usd";"failed_tool_calls";"prompt_characters_by_agent"
+"inline";"1";"completed";"";"730173de954440bd946018a76226c173";"6";"router";"16225";"11904";"";"4050";"3648";"62906.1677";"0.04738925";"2";"{""router"":[5252]}"
+"skills";"1";"completed";"";"c49ef76a32834b418f908abf03870806";"10";"router";"33106";"27392";"";"6102";"5632";"91376.5388";"0.0715865";"2";"{""router"":[5028]}"
+"a2a";"1";"completed";"";"1b6c33e8071a4de4b6b7ed9498917d65";"12";"router, orders, returns, catalog";"20677";"11520";"";"16980";"14976";"230868.6677";"0.18268625";"2";"{""router"":[3663],""orders"":[3166],""returns"":[3179],""catalog"":[4493]}"
+"a2a";"2";"completed";"";"5b8bc5c2fe2444e185415dcf65a21082";"12";"router, orders, returns, catalog";"21314";"16512";"";"19853";"17728";"267668.9215";"0.2065965";"2";"{""router"":[3663],""orders"":[3166],""returns"":[3179],""catalog"":[4493]}"
+"skills";"2";"completed";"";"e8d27ad6174740a6a9dbf97412cdd120";"10";"router";"33106";"32384";"";"5952";"5504";"88432.1037";"0.0644705";"2";"{""router"":[5028]}"
+"inline";"2";"completed";"";"0acbfca44c9543e3856c5340f9dee4ad";"5";"router";"13768";"11776";"";"4629";"4288";"73072.997";"0.050252";"1";"{""router"":[5252]}"

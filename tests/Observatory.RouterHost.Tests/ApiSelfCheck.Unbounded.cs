@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging.Abstractions;
-using Observatory.Agents;
+using Observatory.AgentRuntime;
 using Observatory.Core;
 
-namespace Observatory.Api;
+namespace Observatory.RouterHost;
 
 internal static partial class ApiSelfCheck
 {
@@ -21,7 +21,7 @@ internal static partial class ApiSelfCheck
             ["Models:gpt5:Capabilities:FunctionCalling"] = "true",
             ["Models:gpt5:Capabilities:MaxOutputTokens"] = "true"
         }).Build();
-        var settings = new ObservatorySettings(configuration);
+        var settings = new ObservatorySettings(configuration, TestArchitectures.A2A);
         var selected = new RunConfiguration { UnboundedExecution = true, MaxModelCalls = 1, MaxOutputTokens = 1 };
         var agentRequest = new AgentRunRequest
         {

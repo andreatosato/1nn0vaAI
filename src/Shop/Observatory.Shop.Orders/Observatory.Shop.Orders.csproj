@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Shared\Observatory.Core\Observatory.Core.csproj" />
+    <ProjectReference Include="..\..\Shared\Observatory.ServiceDefaults\Observatory.ServiceDefaults.csproj" />
+  </ItemGroup>
+
+</Project>

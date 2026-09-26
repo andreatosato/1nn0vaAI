@@ -1,9 +1,9 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { ObservatoryApi } from '../lib/api';
-import { demoData, jsonResponse, pathOf, product } from '../test/fixtures';
-import { DataView } from './DataView';
+import { ObservatoryApi } from '../../src/lib/api';
+import { demoData, jsonResponse, pathOf, product } from '../support/fixtures';
+import { DataView } from '../../src/components/DataView';
 
 function setup() {
   const fetchMock = vi.fn<typeof fetch>().mockImplementation(async () => jsonResponse(demoData));
