@@ -1,9 +1,0 @@
-Ecco quanto ho verificato per ORD-1042 e un suggerimento di camicia sotto i 40 USD.
-
-- Consegna: 2026-09-05.
-- Reso per difetto al primo utilizzo: in base alla policy POL-DEFECT-60, un difetto consente il reso entro 60 giorni anche per articoli outlet. Oggi è il 2026-09-23, quindi sono passati 18 giorni: la richiesta rientra nella finestra prevista.
-- Importo rimborsabile: il rimborso non può superare l’importo effettivamente pagato (POL-REFUND-PAID). Per questo ordine AmountPaid è 19.99 USD (listino 29.99 USD), quindi l’importo previsto è 19.99 USD.
-- Nota: la valutazione automatica del reso ha restituito un errore, quindi non posso confermare formalmente l’ammissibilità in questo momento. Non ho creato nessuna bozza né eseguito azioni. Se vuoi, posso riprovare la valutazione.
-
-Suggerimento camicia disponibile sotto 40 USD:
-- ID 86 — Man Short Sleeve Shirt — 19.99 USD.

@@ -1,8 +1,0 @@
-Ecco quanto ho verificato per ORD-1042:
-
-- Consegna: 2026-09-05. Stato: delivered.
-- Reso per difetto al primo utilizzo: ammissibile secondo POL-DEFECT-60 (entro 60 giorni dalla consegna; oggi è il 2026-09-23, quindi sei nei termini). Gli articoli outlet sono inclusi.
-- Importo potenziale: fino a 19.99 USD, pari all’AmountPaid della linea Blue & Black Check Shirt (ID prodotto 83). Eventuali spese accessorie non risultano dai dati disponibili. L’esito definitivo viene comunque riconfermato dal servizio resi prima di qualsiasi passo successivo. Nessuna bozza è stata creata.
-
-Camicia consigliata sotto i 40 USD (disponibile):
-- ID 87 — Men Check Shirt — 27.99 USD — disponibile.

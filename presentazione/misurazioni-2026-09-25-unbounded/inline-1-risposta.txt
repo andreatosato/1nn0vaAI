@@ -1,7 +1,0 @@
-Ecco quanto ho verificato per l’ordine ORD-1042:
-- Consegna: 5 settembre 2026.
-- Reso per difetto al primo utilizzo: ammesso. La policy “Eccezione difetto” consente la richiesta entro 60 giorni dalla consegna anche per articoli outlet; sei a circa 18 giorni, quindi rientri nel termine.
-- Importo rimborsabile previsto: fino a 19,99 USD, pari all’importo effettivamente pagato (la policy non consente di superarlo).
-
-Suggerimento camicia sotto 40 USD (disponibile):
-- Men Check Shirt — ID 87 — 27,99 USD.

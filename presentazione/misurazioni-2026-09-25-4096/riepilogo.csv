@@ -1,7 +1,0 @@
-﻿"architecture";"repetition";"status";"error";"run_id";"calls";"agents";"input";"cached";"cache_write";"output";"reasoning";"duration_ms";"cost_usd";"failed_tool_calls";"prompt_characters_by_agent"
-"inline";"1";"completed";"";"841fc49ca147492994d68ef8762e56d2";"6";"router";"16424";"14336";"";"5133";"4736";"69807.1156";"0.055732";"2";"{""router"":[5252]}"
-"skills";"1";"completed";"";"a3b64478909a4a578ea86ed4e5cf5e93";"9";"router";"37449";"29824";"";"5545";"5056";"79770.0648";"0.06870925";"1";"{""router"":[4891]}"
-"a2a";"1";"failed";"Approved run budget reached. Further paid calls are blocked.";"c37c81565c7a4b9b8ddbaf056a71f3f6";"8";"router, orders, returns";"11342";"5888";"";"10919";"9536";"164925.2372";"0.1167435";"2";"{""router"":[3663],""orders"":[3166],""returns"":[3179]}"
-"a2a";"2";"failed";"Approved run budget reached. Further paid calls are blocked.";"6c680876a9054fab87fa7ce05b3b4a5c";"8";"router, orders, returns";"11681";"9088";"";"12384";"11392";"169209.0117";"0.12821725";"2";"{""router"":[3663],""orders"":[3166],""returns"":[3179]}"
-"skills";"2";"completed";"";"7d29981232254bdcaba1d78f801b61e0";"9";"router";"34989";"32000";"";"3821";"3392";"71320.8179";"0.04594625";"1";"{""router"":[4891]}"
-"inline";"2";"completed";"";"9ebc1cb69e46418faa7a2244a32eec72";"6";"router";"16417";"15232";"";"4352";"3904";"69131.8729";"0.04690525";"2";"{""router"":[5252]}"

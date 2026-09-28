@@ -1,9 +1,0 @@
-Ecco le informazioni richieste per ORD-1042 e un suggerimento di camicia sotto i 40 USD.
-
-Ordine ORD-1042
-- Consegna: 2026-09-05 (stato: consegnato).
-- Reso per difetto al primo utilizzo: in linea di principio ammissibile entro 60 giorni dalla consegna; alla data commerciale 2026-09-23 sono passati 18 giorni. L’idoneità viene comunque verificata dal servizio Ordini al momento della richiesta e potrebbero chiedere una breve descrizione o prove del difetto. Non risultano resi già registrati per questo ordine.
-- Importo rimborsabile: il rimborso si basa su quanto effettivamente pagato (AmountPaid). Per questo ordine è fino a 19.99 USD se il reso copre tutti gli articoli idonei; per un reso parziale, la quota corrispondente. Non creo bozze o azioni.
-
-Consiglio camicia disponibile sotto 40 USD
-- Man Short Sleeve Shirt — productId 86 — 19.99 USD — disponibile.
